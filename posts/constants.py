@@ -1,0 +1,1 @@
+"""This file contains all the constants that will be used in this app"""
