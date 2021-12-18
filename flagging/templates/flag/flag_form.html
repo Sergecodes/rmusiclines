@@ -1,0 +1,69 @@
+<!-- This template overrides the default form used by django-flag-app. -->
+<!-- the flag_form.html and flag_icon.html templates used by django-flag-app have been modified, same as the flag.css file. -->
+{# NOTE: Any class on any of these templates should not be removed! This may disrupt the javascript functionality. To restyle an element, comment out its style in the flag.css stylesheet. Before modifying any element, be 100% sure that it won't disrupt the js functionality. #}
+{# ensure modal and files are in html template #}
+{% load i18n %}
+
+{# we must've already verified in the invoking template whether this form should be displayed or not #}
+{# so we just display the template with no further conditions #}
+
+{# this element will be used to in the script #}
+<span class="d-none js-first-child"></span>
+<span class="d-none js-flag-alert-msg">{% trans 'The report request could not be processed. Please refresh the page and try again.' %}</span>
+<span class="d-none js-remove-flag">{% trans 'Remove flag' %}</span>
+<span class="d-none js-report-content">{% trans 'Report post' %}</span>
+<div class="d-inline report-modal-form-combined">
+	<div class="d-inline link-danger flag-report-icon js-flag-report-icon"
+		data-url="{% url 'flagging:flag' %}"
+		data-app-name="{{ app_name }}"
+		data-model-name="{{ model_name }}"
+		data-model-id="{{ model_id }}"
+		data-csrf="{{ csrf_token }}"
+		role="button"
+	>
+		{# span element; don't even dare modify this :) #}
+		<span {% if display_title %}title="{% if has_flagged %} {% trans 'Remove flag' %} {% else %} {% trans 'Report post' %} {% endif %}" {% endif %}>
+			{% include "flag/flag_icon.html" %}
+		</span>
+	</div>
+	{# use text-start to conteract text-end in question detail templates #}
+	<div class="w-100 text-start flag-report-modal js-flag-report-modal">
+		<div class="w-75 report-modal-content">
+			<span class="report-modal-close">&times;</span>
+			<div class="report-modal-flag-form">
+				<form class="m-2 p-1 report-modal-form">
+					<div class="flag-modal-title">{% trans "Report this post" %}</div>
+					{% csrf_token %}
+					<div>
+						<div class="report-modal-form-reasons">
+							{% for reason in flag_reasons  %}
+							<div class="form-check mb-3">
+								<input
+									id="{{ reason.reason }}-{{ random_uid }}"
+									type="radio"
+									value="{{ reason.value }}"
+									class="form-check-input my-2 flag-reason {% if forloop.last %} last-flag-reason {% endif %}"
+									name="reason" required
+								>
+								<label class="form-check-label" for="{{ reason.reason }}-{{ random_uid }}">{{ reason.reason }}</label>
+							</div>
+							{% endfor %}
+						</div>
+						<div class="mb-4">
+							<textarea class="form-control report-modal-form-info" rows="5" cols="40" name="info"></textarea>
+						</div>
+						<input type="submit" class="flag-submit-btn" value="{% trans 'Submit' %}" />
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+
+{% if user.is_mod %}
+	{# mod can see number of flags on post #}
+	<span class="text-danger fw-bold ms-2">
+		({{ num_flags }} {% trans 'flag' %}{{ num_flags|pluralize }})
+	</span>
+{% endif %}
+

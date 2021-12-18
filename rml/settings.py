@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
+# fidzic.com...
+
 # python-decouple
 # See https://pypi.org/project/python-decouple/  
 # and https://simpleisbetterthancomplex.com/2015/11/26/package-of-the-week-python-decouple.html
@@ -46,8 +48,46 @@ if USE_PROD_DB:
 	# }
 else:
 	DATABASES = {
+		# configure database with schemas
 		'default': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
+			'OPTIONS': {
+				# use `django` schema so as not to polute public schema
+				'options': '-c search_path=django,public'
+			},
+			'NAME': config('DB_NAME'),
+			'USER': config('DB_USER'),
+			'PASSWORD': config('DB_PASSWORD'),
+			'HOST': config('DB_HOST'),
+			'PORT': '5432',
+		},
+		'accounts': {
+			'ENGINE': 'django.db.backends.postgresql_psycopg2',
+			'OPTIONS': {
+				'options': '-c search_path=accounts,public'
+			},
+			'NAME': config('DB_NAME'),
+			'USER': config('DB_USER'),
+			'PASSWORD': config('DB_PASSWORD'),
+			'HOST': config('DB_HOST'),
+			'PORT': '5432',
+		},
+		'posts': {
+			'ENGINE': 'django.db.backends.postgresql_psycopg2',
+			'OPTIONS': {
+				'options': '-c search_path=posts,public'
+			},
+			'NAME': config('DB_NAME'),
+			'USER': config('DB_USER'),
+			'PASSWORD': config('DB_PASSWORD'),
+			'HOST': config('DB_HOST'),
+			'PORT': '5432',
+		},
+		'flagging': {
+			'ENGINE': 'django.db.backends.postgresql_psycopg2',
+			'OPTIONS': {
+				'options': '-c search_path=flagging,public'
+			},
 			'NAME': config('DB_NAME'),
 			'USER': config('DB_USER'),
 			'PASSWORD': config('DB_PASSWORD'),
