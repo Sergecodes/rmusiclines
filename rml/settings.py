@@ -16,10 +16,14 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 # See https://pypi.org/project/python-decouple/  
 # and https://simpleisbetterthancomplex.com/2015/11/26/package-of-the-week-python-decouple.html
 from decouple import config, Csv
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+AUTH_USER_MODEL = 'accounts.User'
 
 
 # Quick-start development settings - unsuitable for production
@@ -48,11 +52,11 @@ if USE_PROD_DB:
 	# }
 else:
 	DATABASES = {
-		# configure database with schemas
+		# Configure database with schemas
 		'default': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
 			'OPTIONS': {
-				# use `django` schema so as not to polute public schema
+				# Use `django` schema so as not to polute public schema
 				'options': '-c search_path=django,public'
 			},
 			'NAME': config('DB_NAME'),
@@ -112,6 +116,12 @@ INSTALLED_APPS = [
 	'django.contrib.sessions',
 	'django.contrib.messages',
 	'django.contrib.staticfiles',
+
+	# Third-party apps
+
+	# Project apps
+	# 'accounts',
+
 ]
 
 MIDDLEWARE = [
@@ -177,6 +187,18 @@ USE_L10N = True
 
 USE_TZ = True
 
+LANGUAGES = (
+	('en', _('English')),
+	('fr', _('French')),
+)
+
+LOCALE_PATHS = [
+	BASE_DIR / 'locale',
+]
+
+# LOGIN_URL = reverse_lazy('accounts:login')
+# LOGIN_REDIRECT_URL = '/'
+# LOGOUT_REDIRECT_URL = '/'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/

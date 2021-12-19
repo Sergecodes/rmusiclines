@@ -1,6 +1,12 @@
-"""This file contains functions using this app(posts) that access the database"""
+"""
+This file contains functions using this app(posts) that access the database.
+"""
 
-class MusicianPostDAO:
+class ArtistPostDAO:
+    pass
+
+
+class NonArtistRelatedPostDAO:
     pass
 
 
