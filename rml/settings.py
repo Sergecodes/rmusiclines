@@ -15,8 +15,8 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 # python-decouple
 # See https://pypi.org/project/python-decouple/  
 # and https://simpleisbetterthancomplex.com/2015/11/26/package-of-the-week-python-decouple.html
+
 from decouple import config, Csv
-from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from pathlib import Path
 
@@ -25,6 +25,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# Required since we use the django.contrib.sites app
+SITE_ID = 1
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
@@ -40,16 +42,6 @@ USE_PROD_DB = config('USE_PROD_DB', cast=bool)
 
 if USE_PROD_DB:
 	pass
-	# DATABASES = {
-	# 	'default': {
-	# 		'ENGINE': 'django.db.backends.postgresql_psycopg2',
-	# 		'NAME': config('DB_NAME'),
-	# 		'USER': config('DB_USER'),
-	# 		'PASSWORD': config('DB_PASSWORD'),
-	# 		'HOST': config('DB_HOST'),
-	# 		'PORT': '5432',
-	# 	}
-	# }
 else:
 	DATABASES = {
 		# Configure database with schemas
@@ -106,6 +98,9 @@ else:
 # EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 # EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
 
+if DEBUG:
+	EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 
 # Application definition
 
@@ -116,11 +111,22 @@ INSTALLED_APPS = [
 	'django.contrib.sessions',
 	'django.contrib.messages',
 	'django.contrib.staticfiles',
+	# Required by django-allauth
+	'django.contrib.sites',  
 
 	# Third-party apps
+	'allauth',
+	'allauth.account',
+	'allauth.socialaccount',
+	'allauth.socialaccount.providers.apple',
+	'allauth.socialaccount.providers.facebook',
+	'allauth.socialaccount.providers.google',
+	'allauth.socialaccount.providers.spotify',
 
 	# Project apps
-	# 'accounts',
+	'accounts',
+	'core',
+	'posts',
 
 ]
 
@@ -155,8 +161,18 @@ TEMPLATES = [
 WSGI_APPLICATION = 'rml.wsgi.application'
 
 
+
+
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
+
+AUTHENTICATION_BACKENDS = [
+	# Needed to login by username in Django admin, regardless of 'allauth'
+	'django.contrib.auth.backends.ModelBackend',
+
+	# 'allauth' specific authentication methods, such as login by e-mail
+	'allauth.account.auth_backends.AuthenticationBackend'
+]
 
 AUTH_PASSWORD_VALIDATORS = [
 	{
@@ -187,18 +203,13 @@ USE_L10N = True
 
 USE_TZ = True
 
-LANGUAGES = (
-	('en', _('English')),
-	('fr', _('French')),
-)
-
 LOCALE_PATHS = [
 	BASE_DIR / 'locale',
 ]
 
 # LOGIN_URL = reverse_lazy('accounts:login')
-# LOGIN_REDIRECT_URL = '/'
-# LOGOUT_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
@@ -209,3 +220,33 @@ STATIC_URL = '/static/'
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+### Third-party apps settings
+# allauth settings (https://django-allauth.readthedocs.io/en/latest/configuration.html)
+SOCIALACCOUNT_PROVIDERS = {
+	'apple': {
+		'VERIFIED_EMAIL': True
+	},
+	'facebook': {
+
+	},
+	'google': {
+		# 'VERIFIED_EMAIL': True
+	},
+	'spotify': {
+		# 'VERIFIED_EMAIL': True
+	}
+}
+
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN = 300  
+ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE = True
+ACCOUNT_SESSION_REMEMBER = False
+ACCOUNT_SIGNUP_PASSWORD_ENTER_TWICE = False
+ACCOUNT_USERNAME_BLACKLIST = [
+	'Admin', 'Fidzic', 'Staff'
+]
+ACCOUNT_USER_DISPLAY = 'accounts.User.__str__'

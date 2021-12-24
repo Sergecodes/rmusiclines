@@ -6,3 +6,4 @@ django-countries==7.2.1
 pyuca==1.2
 django-taggit==2.0.0
 shortuuid==1.0.8
+Pillow==8.4.0
