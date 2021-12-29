@@ -79,6 +79,17 @@ else:
 			'HOST': config('DB_HOST'),
 			'PORT': '5432',
 		},
+		'notifications': {
+			'ENGINE': 'django.db.backends.postgresql_psycopg2',
+			'OPTIONS': {
+				'options': '-c search_path=notifications,public'
+			},
+			'NAME': config('DB_NAME'),
+			'USER': config('DB_USER'),
+			'PASSWORD': config('DB_PASSWORD'),
+			'HOST': config('DB_HOST'),
+			'PORT': '5432',
+		},
 		'flagging': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
 			'OPTIONS': {
@@ -127,7 +138,9 @@ INSTALLED_APPS = [
 	'accounts',
 	'core',
 	'posts',
-
+	'flagging',
+	'notifications',
+	
 ]
 
 MIDDLEWARE = [

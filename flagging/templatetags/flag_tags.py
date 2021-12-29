@@ -2,7 +2,7 @@ import uuid
 from django import template
 from django.utils.translation import gettext_lazy as _
 
-from flagging.models import Flag, FlagInstance
+from flagging.models.models import Flag, FlagInstance
 
 register = template.Library()
 

@@ -1,10 +1,12 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from taggit.managers import TaggableManager
 from taggit.models import TaggedItemBase
 
 from accounts.models.artists.models import Artist
+from core.utils import UsesCustomSignal
 from .operations import ArtistPostOperations
 from ..common.models import (
     Post, PostHashtag, 
@@ -13,7 +15,7 @@ from ..common.models import (
 )
 
 
-class ArtistPost(Post, ArtistPostOperations):
+class ArtistPost(Post, ArtistPostOperations, UsesCustomSignal):
 	# related_name can't be set on this class (TaggableManager)
 	hashtags = TaggableManager(
 		verbose_name=_('Hashtags'), 
@@ -114,6 +116,9 @@ class ArtistPostPhoto(models.Model):
 	photo_width = models.PositiveIntegerField(_('Photo width'))
 	photo_height = models.PositiveIntegerField(_('Photo height'))
 
+	def __str__(self):
+		return f'Post {str(self.post)} photo'
+
 	class Meta:
 		db_table = 'posts\".\"artist_post_photo'
 
@@ -128,6 +133,9 @@ class ArtistPostVideo(models.Model):
 		related_query_name='video'
 	)
 	video = models.FileField(_('Video'))
+
+	def __str__(self):
+		return f'Post {str(self.post)} video'
 
 	class Meta:
 		db_table = 'posts\".\"artist_post_video'
@@ -172,6 +180,15 @@ class ArtistPostMention(models.Model):
 		related_name='+'
 	)
 
+	def __str__(self):
+		return f'Post {str(self.post)} mentions {str(self.user_mentioned)}'
+
+	@property
+	def mentioned_on(self):
+		# A user is mentioned only when a post is created since
+		# a posts can't be edited
+		return self.post.created_on
+
 	class Meta:
 		db_table = 'posts\".\"artist_post_user_mention'
 		constraints = [
@@ -181,14 +198,8 @@ class ArtistPostMention(models.Model):
 			),
 		]
 
-	@property
-	def mentioned_on(self):
-		# A user is mentioned only when a post is created since
-		# a posts can't be edited
-		return self.post.created_on
 
-
-class ArtistPostRepost(PostRepost):
+class ArtistPostRepost(PostRepost, UsesCustomSignal):
 	"""Artist post and reposter through model"""
 
 	post = models.ForeignKey(
@@ -208,6 +219,9 @@ class ArtistPostRepost(PostRepost):
 		related_query_name='artist_post_repost',
 	)
 
+	def __str__(self):
+		return f'Post {str(self.post)} reposted by {str(self.reposter)}'
+	
 	class Meta:
 		db_table = 'posts\".\"artist_post_repost'
 		ordering = ['-reposted_on']
@@ -219,7 +233,7 @@ class ArtistPostRepost(PostRepost):
 		]
 
 
-class ArtistPostRating(PostRating):
+class ArtistPostRating(PostRating, UsesCustomSignal):
 	"""Artist post and rater through model"""
 
 	post = models.ForeignKey(
@@ -237,6 +251,9 @@ class ArtistPostRating(PostRating):
 		related_query_name='artist_post_rating',
 	)
 
+	def __str__(self):
+		return f'Post {str(self.post)} rated {self.num_stars} star(s) by {str(self.reposter)}'
+	
 	class Meta:
 		db_table = 'posts\".\"artist_post_rating'
 		constraints = [
@@ -244,10 +261,14 @@ class ArtistPostRating(PostRating):
 				fields=['post', 'rater'],
 				name='unique_artist_post_rating'
 			),
+			models.CheckConstraint(
+				check=Q(num_stars__gte=1) & Q(num_stars__lte=5),
+				name='artist_post_rating_stars_betw_1_and_5'
+			)
 		]
 
 
-class ArtistPostBookmark(models.Model):
+class ArtistPostBookmark(models.Model, UsesCustomSignal):
 	"""Artist post and bookmarker through model"""
 
 	post = models.ForeignKey(
@@ -264,6 +285,9 @@ class ArtistPostBookmark(models.Model):
 	)
 	bookmarked_on = models.DateTimeField(auto_now_add=True, editable=False)
 
+	def __str__(self):
+		return f'Post {str(self.post)} bookmarked by {str(self.bookmarker)}'
+	
 	class Meta:
 		db_table = 'posts\".\"artist_post_bookmark'
 		constraints = [
@@ -296,11 +320,23 @@ class ArtistPostDownload(models.Model):
 	)
 	downloaded_on = models.DateTimeField(auto_now_add=True, editable=False)
 
+	def __str__(self):
+		return f'Post {str(self.post)} downloaded by {str(self.downloader)}'
+	
 	class Meta:
 		db_table = 'posts\".\"artist_post_download'
 
 
-class ArtistPostComment(Comment):
+class ArtistPostComment(Comment, UsesCustomSignal):
+	parent = models.ForeignKey(
+		'self',
+		on_delete=models.CASCADE,
+		related_name='replies',
+		related_query_name='reply',
+		db_column='parent_comment_id',
+		blank=True,
+		null=True
+	)
 	poster = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
 		db_column='user_id',
@@ -322,11 +358,16 @@ class ArtistPostComment(Comment):
 		related_query_name='liked_artist_post_comment'
 	)
 
+	@property
+	def is_parent(self):
+		return True if self.parent is None else False
+
 	class Meta: 
 		db_table = 'posts\".\"artist_post_comment'
+		ordering = ['-num_likes', '-created_on']
 
 
-class ArtistPostCommentLike(CommentLike):
+class ArtistPostCommentLike(CommentLike, UsesCustomSignal):
 	comment = models.ForeignKey(
 		ArtistPostComment,
 		db_column='artist_post_comment_id',
@@ -339,6 +380,9 @@ class ArtistPostCommentLike(CommentLike):
 		on_delete=models.CASCADE,
 		related_name='+'
 	)
+
+	def __str__(self):
+		return f'Comment {str(self.comment)} liked by {str(self.liker)}'
 
 	class Meta:
 		db_table = 'posts\".\"artist_post_comment_like'

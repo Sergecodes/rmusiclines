@@ -11,6 +11,7 @@ class UserUsernameValidator(RegexValidator):
 	- All other characters are allowed(letters, numbers, and underscores).
 	"""
 	regex = r'\A[a-zA-Z0-9_]{1,15}\Z'
+	# or regex = r'\A[\w]{1,15}\Z'
 	message = _(
 		'Enter a valid username. This value should contain at most 15 characters. \n '
 		'It should not contain any symbols, dashes or spaces; '

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import SetFlag
 
+
 app_name = 'flagging'
 
 urlpatterns = [

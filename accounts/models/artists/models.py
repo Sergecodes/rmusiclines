@@ -1,10 +1,15 @@
+import datetime
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
+from django.utils import timezone
 from django.utils.text import slugify
 from django_countries.fields import CountryField
 from django.utils.translation import gettext_lazy as _
 from taggit.managers import TaggableManager
 from taggit.models import TagBase, TaggedItemBase
 
+from accounts.constants import ARTIST_MAX_AGE, ARTIST_MIN_AGE
 from core.constants import GENDERS
 from .operations import ArtistOperations, ArtistTagOperations
 
@@ -31,7 +36,7 @@ class Artist(models.Model, ArtistOperations):
 		default='M',
 		max_length=3
 	)
-	date_of_birth = models.DateField(_('Date of birth'))
+	birth_date = models.DateField(_('Date of birth'))
 	tags = TaggableManager(
 		verbose_name=_('Tags'), 
 		through='TaggedArtist',
@@ -45,12 +50,8 @@ class Artist(models.Model, ArtistOperations):
 		editable=False
 	)
 
-	class Meta:
-		db_table = 'accounts\".\"artist'
-		ordering = ['name']
-
 	def __str__(self):
-		return f'{self.name}'
+		return self.name
 
 	def save(self, *args, **kwargs):
 		if not self.pk:
@@ -59,6 +60,25 @@ class Artist(models.Model, ArtistOperations):
 
 		# Add artist's nationality to tags
 		self.tags.add(self.country)
+
+	class Meta:
+		db_table = 'accounts\".\"artist'
+		ordering = ['name']
+		constraints = [
+			models.CheckConstraint(
+				check=
+					Q(
+						birth_date__lte=timezone.now().date() - 
+						# Convert years to days so as to use timedelta object
+						datetime.timedelta(days=ARTIST_MIN_AGE*365)
+					) & 
+					Q(
+						birth_date__gte=timezone.now().date() -
+						datetime.timedelta(days=ARTIST_MAX_AGE*365)	
+					),
+				name='age_gte_15_and_lte_100'
+			)
+		]
 
 
 class ArtistPhoto(models.Model):
@@ -77,6 +97,9 @@ class ArtistPhoto(models.Model):
 	photo_height = models.PositiveIntegerField(_('Photo height'))
 	added_on = models.DateTimeField(auto_now_add=True)
 
+	def __str__(self):
+		return f'Artist {str(self.artist)} photo'
+
 	class Meta:
 		ordering = ['-added_on']
 		db_table = 'accounts\".\"artist_photo'
@@ -88,11 +111,30 @@ class ArtistTag(TagBase, ArtistTagOperations):
 	# Overrode name and slug coz name's maxlength is 100 and slug is 100.
 	# this is bad coz if name is say 100(though almost impossible), slug will be >100 chars.
 	name = models.CharField(_('Name'), unique=True, max_length=30)
-	slug = models.SlugField(unique=True, max_length=50, editable=False)
+	slug = models.SlugField(unique=True, max_length=30, editable=False)
+
+	def clean(self):
+		if not self.name.isalnum():
+			raise ValidationError(
+				_(
+					"Tags should be alphanumeric(can only contain alphabetic) "
+					"or numeric characters; symbols are not allowed."
+				)
+			)
+		
+	def save(self, *args, **kwargs):
+		self.clean()
+		super().save(*args, **kwargs)
 
 	class Meta:
 		db_table = 'accounts\".\"artist_tag'
-
+		constraints = [
+			models.CheckConstraint(
+				# Tag name should be alphanumeric
+				check=~Q(name__regex=r'^[a-zA-ZÀ-Ÿ0-9]+$'),
+				name='tag_is_alphanumeric'
+			)
+		]
 
 class TaggedArtist(TaggedItemBase):
 	"""Through model between Artist and ArtistTag"""

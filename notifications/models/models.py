@@ -1,33 +1,30 @@
-from django.apps import apps
 from django.conf import settings
-from django.contrib.auth.models import Group
 from django.contrib.contenttypes.fields import GenericForeignKey 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.query import QuerySet
-from django.utils import timezone
-from model_utils import Choices
+from django.utils.translation import gettext_lazy as _
 
 from notifications import settings as notifications_settings
-from notifications.signals import notify
+from .operations import NotificationOperations
 
 
 def is_soft_delete():
     return notifications_settings.get_config()['SOFT_DELETE']
 
-
 def assert_soft_delete():
     if not is_soft_delete():
-        # msg = """To use 'deleted' field, please set 'SOFT_DELETE'=True in settings.
-        # Otherwise NotificationQuerySet.unread and NotificationQuerySet.read do NOT filter by 'deleted' field.
-        # """
-        msg = 'REVERTME'
+        msg = "To use 'deleted' field, please set 'SOFT_DELETE'=True in settings. \
+        Otherwise NotificationQuerySet.unread and NotificationQuerySet.read \
+        do NOT filter by 'deleted' field."
+
         raise ImproperlyConfigured(msg)
 
 
-class NotificationQuerySet(models.query.QuerySet):
-    ''' Notification QuerySet '''
+class NotificationQuerySet(QuerySet):
+    """ Notification QuerySet """
+
     def unsent(self):
         return self.filter(emailed=False)
 
@@ -53,8 +50,8 @@ class NotificationQuerySet(models.query.QuerySet):
         return self.filter(unread=False)
 
     def mark_all_as_read(self, recipient=None):
-        """Mark as read any unread messages in the current queryset.
-
+        """
+        Mark as read any unread messages in the current queryset.
         Optionally, filter these by recipient first.
         """
         # We want to filter out read ones, as later we will store
@@ -66,8 +63,8 @@ class NotificationQuerySet(models.query.QuerySet):
         return qset.update(unread=False)
 
     def mark_all_as_unread(self, recipient=None):
-        """Mark as unread any read messages in the current queryset.
-
+        """
+        Mark as unread any read messages in the current queryset.
         Optionally, filter these by recipient first.
         """
         qset = self.read(True)
@@ -88,7 +85,8 @@ class NotificationQuerySet(models.query.QuerySet):
         return self.filter(deleted=False)
 
     def mark_all_as_deleted(self, recipient=None):
-        """Mark current queryset as deleted.
+        """
+        Mark current queryset as deleted.
         Optionally, filter by recipient first.
         """
         assert_soft_delete()
@@ -99,7 +97,8 @@ class NotificationQuerySet(models.query.QuerySet):
         return qset.update(deleted=True)
 
     def mark_all_as_active(self, recipient=None):
-        """Mark current queryset as active(un-deleted).
+        """
+        Mark current queryset as active(un-deleted).
         Optionally, filter by recipient first.
         """
         assert_soft_delete()
@@ -122,7 +121,7 @@ class NotificationQuerySet(models.query.QuerySet):
         return qset.update(emailed=True)
 
 
-class AbstractNotification(models.Model):
+class Notification(models.Model, NotificationOperations):
     """
     Action model describing the actor acting out a verb (on an optional
     target).
@@ -148,21 +147,64 @@ class AbstractNotification(models.Model):
 
     HTML Representation::
 
-        <a href="http://oebfare.com/">brosner</a> commented on <a href="http://github.com/pinax/pinax">pinax/pinax</a> 2 hours ago # noqa
+        <a href="http://oebfare.com/">brosner</a> commented on 
+        <a href="http://github.com/pinax/pinax">pinax/pinax</a> 2 hours ago # noqa
 
     """
-    LEVELS = Choices('success', 'info', 'warning', 'error')
-    level = models.CharField(choices=LEVELS, default=LEVELS.info, max_length=20)
 
+    SUCCESS = 'S'
+    INFO = 'I'
+    WARNING = 'W'
+    ERROR = 'E'
+
+    LEVEL_CODES = (
+        (SUCCESS, _('Success')),
+        (INFO, _('Info')),
+        (WARNING, _('Warning')),
+        (ERROR, _('Error'))
+    )
+
+
+    ACCOUNT = 'A'       # related to users accounts
+    GENERAL = 'G'       # general notifications
+    MENTION = 'M'       # to users that were mentioned in a post
+    FLAG = 'F'          # to users whose post has been flagged 
+                        # (may be n times, telling them to modify it)
+    FOLLOW = 'FO'       # when a user follows another user
+    REPORTED = 'R'      # moderators only, for reported posts
+    RATING = 'RA'       # when user's post is rated
+    COMMENT = 'C'       # when a user's post is commented on
+    REPOST = 'RP'       # when a user's post is retweeted
+    COMMENT_LIKE = 'CL' # when a user's comment is liked
+
+    NOTIFICATION_CATEGORIES = (
+        (GENERAL, _('General')),
+        (ACCOUNT, _('Account')),
+        (MENTION, _('Mention')),
+        (FLAG, _('Flag')),
+        (FOLLOW, _('Follow')),
+        (REPORTED, _('Reported to moderator')),
+        (RATING, _('Post rating')),
+        (COMMENT, _('Comment')),
+        (REPOST, _('Repost')),
+        (COMMENT_LIKE, _('Comment like'))
+    )
+
+    level = models.CharField(choices=LEVEL_CODES, default=INFO, max_length=2)
+    category = models.CharField(choices=NOTIFICATION_CATEGORIES, max_length=2)
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        blank=False,
         related_name='notifications',
+        related_query_name='notification',
+        on_delete=models.CASCADE,
+        db_column='recipient_id'
+    )
+    actor_content_type = models.ForeignKey(
+        ContentType, 
+        related_name='notify_actor', 
         on_delete=models.CASCADE
     )
-    unread = models.BooleanField(default=True, blank=False, db_index=True)
-
-    actor_content_type = models.ForeignKey(ContentType, related_name='notify_actor', on_delete=models.CASCADE)
+    # Use CharField so as to be able to point to an id of any type(int, uid, etc..)
     actor_object_id = models.CharField(max_length=255)
     actor = GenericForeignKey('actor_content_type', 'actor_object_id')
 
@@ -176,27 +218,28 @@ class AbstractNotification(models.Model):
         null=True,
         on_delete=models.CASCADE
     )
+    # The target_content_type is optional so set this field optional via blank=True
+    # No need to set null to True since we've set that on the content type.
+    # and a pk can't be null
     target_object_id = models.CharField(max_length=255, blank=True)
     target = GenericForeignKey('target_content_type', 'target_object_id')
 
-    action_object_content_type = models.ForeignKey(ContentType, blank=True, null=True,
-                                                   related_name='notify_action_object', on_delete=models.CASCADE)
+    action_object_content_type = models.ForeignKey(
+        ContentType, 
+        related_name='notify_action_object', 
+        on_delete=models.CASCADE,
+        blank=True, 
+        null=True
+    )
     action_object_object_id = models.CharField(max_length=255, blank=True)
     action_object = GenericForeignKey('action_object_content_type', 'action_object_object_id')
 
-    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
-
-    public = models.BooleanField(default=True, db_index=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
     deleted = models.BooleanField(default=False, db_index=True)
-    emailed = models.BooleanField(default=False, db_index=True)
+    unread = models.BooleanField(default=True)
+    emailed = models.BooleanField(default=False)
 
     objects = NotificationQuerySet.as_manager()
-
-    class Meta:
-        abstract = True
-        ordering = ('-timestamp',)
-        # speed up notifications count query
-        index_together = ('recipient', 'unread')
 
     def __str__(self):
         ctx = {
@@ -214,85 +257,23 @@ class AbstractNotification(models.Model):
             return u'%(actor)s %(verb)s %(action_object)s %(timesince)s ago' % ctx
         return u'%(actor)s %(verb)s %(timesince)s ago' % ctx
 
-    def timesince(self, now=None):
-        """
-        Shortcut for the ``django.utils.timesince.timesince`` function of the
-        current timestamp.
-        """
-        from django.utils.timesince import timesince as timesince_
-        return timesince_(self.timestamp, now)
 
-    def mark_as_read(self):
-        if self.unread:
-            self.unread = False
-            self.save()
+    class Meta:
+        db_table = 'notifications\".\"notification'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(
+                fields=['-timestamp'],
+                name='notif_timestamp_desc_idx'
+            ),
+            models.Index(
+                # Speed up notifications count query
+                fields=['recipient', 'unread'],
+                name='notif_recipient_and_unread_idx'
+            ),
+            models.Index(
+                fields=['unread', 'emailed'],
+                name='notif_unread_and_emailed_idx'
+            )
+        ]
 
-    def mark_as_unread(self):
-        if not self.unread:
-            self.unread = True
-            self.save()
-
-
-def notify_handler(verb, **kwargs):
-    """
-    Handler function to create Notification instance upon action signal call.
-    """
-    Notification = apps.get_model('notifications', 'Notification')
-
-    # Pull the options out of kwargs
-    kwargs.pop('signal', None)
-    recipient = kwargs.pop('recipient')
-    actor = kwargs.pop('sender')
-    optional_objs = [
-        (kwargs.pop(opt, None), opt)
-        for opt in ('target', 'action_object')
-    ]
-    public = bool(kwargs.pop('public', True))
-    description = kwargs.pop('description', '')
-    timestamp = kwargs.pop('timestamp', timezone.now())
-    level = kwargs.pop('level', Notification.LEVELS.info)
-    ## added fields
-    category = kwargs.pop('category', Notification.GENERAL)
-    follow_url = kwargs.pop('follow_url', '')
-    absolved = kwargs.pop('absolved', None)
-
-    # Check if User or Group
-    if isinstance(recipient, Group):
-        recipients = recipient.user_set.all()
-    elif isinstance(recipient, (QuerySet, list)):
-        recipients = recipient
-    else:
-        recipients = [recipient]
-
-    new_notifications = []
-
-    for recipient in recipients:
-        newnotify = Notification(
-            recipient=recipient,
-            actor_content_type=ContentType.objects.get_for_model(actor),
-            actor_object_id=actor.pk,
-            verb=str(verb),
-            public=public,
-            description=description,
-            timestamp=timestamp,
-            level=level,
-            category=category,
-            follow_url=follow_url,
-            absolved=absolved
-        )
-
-        # Set optional objects
-        for obj, opt in optional_objs:
-            if obj is not None:
-                setattr(newnotify, '%s_object_id' % opt, obj.pk)
-                setattr(newnotify, '%s_content_type' % opt,
-                        ContentType.objects.get_for_model(obj))
-
-        newnotify.save()
-        new_notifications.append(newnotify)
-
-    return new_notifications
-
-
-# connect the signal
-notify.connect(notify_handler, dispatch_uid='notifications.models.notification')

@@ -1,12 +1,71 @@
-''' Django notifications signal file '''
-# -*- coding: utf-8 -*-
+from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
+from django.db.models.query import QuerySet
 from django.dispatch import Signal
+from django.utils import timezone
 
+from notifications.models.models import Notification
+
+
+def notify_handler(verb, **kwargs):
+    """
+    Handler function to create Notification instance upon action signal call.
+    """
+    # Pull the options out of kwargs
+    # kwargs.pop('signal', None)
+    recipient = kwargs.pop('recipient')
+    actor = kwargs.pop('sender')
+    optional_objs = [
+        (kwargs.pop(opt, None), opt)
+        for opt in ('target', 'action_object')
+    ]
+    description = kwargs.pop('description', '')
+    timestamp = kwargs.pop('timestamp', timezone.now())
+    level = kwargs.pop('level', Notification.LEVEL_CODES.INFO)
+    ## added fields
+    category = kwargs.pop('category')
+
+    # Check if User or Group
+    if isinstance(recipient, Group):
+        recipients = recipient.user_set.all()
+    elif isinstance(recipient, (QuerySet, list)):
+        recipients = recipient
+    else:
+        recipients = [recipient]
+
+    new_notifications = []
+
+    for recipient in recipients:
+        newnotify = Notification(
+            recipient=recipient,
+            actor_content_type=ContentType.objects.get_for_model(actor),
+            actor_object_id=actor.pk,
+            verb=str(verb),
+            description=description,
+            timestamp=timestamp,
+            level=level,
+            category=category,
+        )
+
+        # Set optional objects
+        for obj, opt in optional_objs:
+            if obj is not None:
+                setattr(newnotify, '%s_object_id' % opt, obj.pk)
+                setattr(
+                    newnotify, 
+                    '%s_content_type' % opt,
+                    ContentType.objects.get_for_model(obj)
+                )
+
+        newnotify.save()
+        new_notifications.append(newnotify)
+
+    return new_notifications
+
+
+# Connect the signal
 notify = Signal()
 
-## apparently, this argument `providing_args` is deprecated.
-# notify = Signal(providing_args=[  # pylint: disable=invalid-name
-#     'recipient', 'actor', 'verb', 'action_object', 'target', 'description',
-#     'timestamp', 'level', 
-#     'category', 'follow_url', 'absolved'
-# ])
+# See https://docs.djangoproject.com/en/3.2/topics/signals/#preventing-duplicate-signals
+notify.connect(notify_handler, dispatch_uid='my_unique_identifier')
+

@@ -1,17 +1,21 @@
-from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models
 from django.utils.translation import gettext_lazy as _
  
-from .utils import get_content_type
+from core.utils import get_content_type
 
 
 class FlagManager(models.Manager):
     def get_flag(self, model_obj):
         ctype = get_content_type(model_obj)
-        # all flaggable models should have a `poster` attribute
-        creator = model_obj.poster
-        flag, __ = self.get_or_create(content_type=ctype, object_id=model_obj.id, creator=creator)
+        # All flaggable models should have a `poster` attribute
+        # or property at least 
+      
+        flag, created = self.get_or_create(
+            content_type=ctype, 
+            object_id=model_obj.pk, 
+            defaults={'creator': model_obj.poster}
+        )
         return flag
 
     def is_flagged(self, model_obj):
@@ -29,12 +33,12 @@ class FlagManager(models.Manager):
         Returns:
             bool
         """
-        flag = self.get_flag(model_obj)
-        return flag.flags.filter(user=user).exists()
+        return model_obj.flags.filter(user=user).exists()
 
 
 class FlagInstanceManager(models.Manager):
     def _clean_reason(self, reason):
+        """Ensure that a valid flagging reason is used"""
         err = ValidationError(
                 _('%(reason)s is an invalid reason'),
                 params={'reason': reason},
@@ -53,6 +57,8 @@ class FlagInstanceManager(models.Manager):
         cleaned_reason = self._clean_reason(reason)
         cleaned_info = None
 
+        # If reason is set to last value (`100 - Something else`)
+        # and no extra info is passed, raise error
         if cleaned_reason == self.model.reason_values[-1]:
             cleaned_info = info
             if not cleaned_info:
@@ -67,13 +73,13 @@ class FlagInstanceManager(models.Manager):
         """Create a FlagInstance"""
         # user shouldn't be able to flag his post
         # get poster_id not poster.id so as to minimize query
-        # SocialProfile can't be flagged
-        # so let's prevent it from been flagged by ensuring the content_object
-        # has a `poster_id`
         content_object = flag.content_object
 
         if not hasattr(content_object, 'poster_id'):
-            return {'created': False, 'msg': _("This object doesn't have a poster_id")}
+            raise ValidationError(
+                _("This object doesn't have a poster_id")
+            )
+            # return {'created': False, 'msg': _("This object doesn't have a poster_id")}
 
         if content_object.poster_id == user.id:
             # print("You can't flag your post")
@@ -92,7 +98,7 @@ class FlagInstanceManager(models.Manager):
                 )
 
     def delete_flag(self, user, flag):
-        """Delete flag(the flag instance - FlagInstance)"""
+        """Delete flag instance"""
         try:
             self.get(user=user, flag=flag).delete()
             return {'deleted': True}
@@ -106,9 +112,8 @@ class FlagInstanceManager(models.Manager):
 
     def set_flag(self, user, model_obj, **kwargs):
         """Create or delete flag instance."""
-        # avoid circular import errors
-        Flag = apps.get_model('flagging', 'Flag')
-        flag_obj = Flag.objects.get_flag(model_obj)
+        # Get flag of object via FlagMixin
+        flag_obj = model_obj.flag
         info = kwargs.get('info', None)
         reason = kwargs.get('reason', None)
 

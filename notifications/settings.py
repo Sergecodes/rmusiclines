@@ -1,5 +1,5 @@
-''' Django notifications settings file '''
-# -*- coding: utf-8 -*-
+""" Django notifications settings file """
+
 from django.conf import settings
 
 

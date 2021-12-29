@@ -5,16 +5,21 @@ from django.contrib.auth.models import (
 	UserManager as BaseUserManager,
 	PermissionsMixin
 )
+from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import F
+from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_countries.fields import CountryField
 
+from accounts.constants import USER_MIN_AGE, USER_MAX_AGE
+from accounts.validators import UserUsernameValidator
 from core.constants import GENDERS
-from .operations import UserOperations
-from ...validators import UserUsernameValidator
+from core.utils import UsesCustomSignal
+from posts.models.artist_posts.models import ArtistPost
+from posts.models.non_artist_posts.models import NonArtistPost
+from .operations import UserOperations, SuspensionOperations
 
 
 class UserQuerySet(QuerySet):
@@ -46,17 +51,7 @@ class UserManager(BaseUserManager):
 		return UserQuerySet(self.model, using=self._db)
 
 
-class User(AbstractBaseUser, PermissionsMixin, UserOperations):
-	email = models.EmailField(
-		_('Email address'),
-		max_length=50,
-		unique=True,
-		help_text=_('We will send a verification code to this email'),
-		error_messages={
-			'unique': _('A user with that email already exists.'),
-			# null, blank, invalid, invalid_choice, unique, unique_for_date
-		}
-	)
+class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal):
 	username = models.CharField(
 		_('Username'),
 		max_length=15,
@@ -83,13 +78,31 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations):
 		## https://www.postgresql.org/docs/current/collation.html#COLLATION-NONDETERMINISTIC
 		db_collation='accounts\".\"case_insensitive'
 	)
+	email = models.EmailField(
+		_('Email address'),
+		max_length=50,
+		unique=True,
+		help_text=_('We will send a verification code to this email'),
+		error_messages={
+			'unique': _('A user with that email already exists.'),
+			# null, blank, invalid, invalid_choice, unique, unique_for_date
+		}
+	)
 	display_name = models.CharField(_('Full name'), max_length=50)
 	country = CountryField(
 		verbose_name=_('Location'),
 		blank_label=_('(select country)'),
 	)
-	date_of_birth = models.DateField(_('Date of birth'))
-	bio = models.TextField(_('Bio'))
+	birth_date = models.DateField(_('Date of birth'))
+	bio = models.CharField(
+		_('Bio'), 
+		max_length=150, 
+		blank=True,
+		help_text=_(
+			'Write about yourself & taste for music. '
+			'You may include your favorite artists or songs.'
+		)
+	)
 	profile_photo = models.ImageField(
 		_('Profile photo'),
 		width_field='profile_photo_width', 
@@ -119,7 +132,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations):
 	)
 	joined_on = models.DateTimeField(_('Date joined'), auto_now_add=True, editable=False)
 	is_superuser = models.BooleanField(default=False)
-	# Staff in company(website)
+	# Staff or admin (can login to admin panel)
 	is_staff = models.BooleanField(default=False)   
 	# Site moderator
 	is_mod = models.BooleanField(default=False)  
@@ -144,16 +157,32 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations):
 		through='UserFollow',
 		related_name='following',
 		related_query_name='following_user',
-		symmetrical=False,
+		symmetrical=False
 	)
 
 	# Post related info
+	pinned_artist_post = models.OneToOneField(
+		ArtistPost,
+		related_name='+',
+		db_column='pinned_artist_post_id',
+		on_delete=models.CASCADE,
+		blank=True,
+		null=True
+	)
+	pinned_non_artist_post = models.OneToOneField(
+		NonArtistPost,
+		related_name='+',
+		db_column='pinned_non_artist_post_id',
+		on_delete=models.CASCADE,
+		blank=True, 
+		null=True
+	)
 	num_followers = models.PositiveIntegerField(default=0)
 	num_following = models.PositiveIntegerField(default=0)
-	num_artist_related_posts = models.PositiveIntegerField(default=0)
-	num_non_artist_related_posts = models.PositiveIntegerField(default=0)
-	num_artist_related_post_comments = models.PositiveIntegerField(default=0)
-	num_non_artist_related_post_comments = models.PositiveIntegerField(default=0)
+	num_artist_posts = models.PositiveIntegerField(default=0)
+	num_non_artist_posts = models.PositiveIntegerField(default=0)
+	num_artist_post_comments = models.PositiveIntegerField(default=0)
+	num_non_artist_post_comments = models.PositiveIntegerField(default=0)
 
 	USERNAME_FIELD = 'username'
 	# USERNAME_FIELD and password are required by default
@@ -166,16 +195,9 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations):
 	# premium = PremiumUserManager()
 	# verified = VerifiedUserManager()
 
-	class Meta:
-		db_table = 'accounts\".\"user'
-		constraints = [
-			models.UniqueConstraint(
-				fields=['username'],
-				name='unique_username',
-				include=['display_name']
-			)
-		]
-	
+	def __str__(self):
+		return f'{self.display_name}, @{self.username}'
+
 	@classmethod
 	def active_users(cls):
 		return cls.objects.filter(is_active=True)
@@ -188,30 +210,79 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations):
 	def verified_users(cls):
 		return cls.objects.filter(is_verified=True)
 
-	def __str__(self):
-		return f'{self.display_name}, @{self.username}'
+	@property
+	def age(self):
+		# Extract date from current time so as to . 
+		# Using just timezone.now() raises TypeError:
+		# unsupported operand type(s) for -: 'datetime.date' and 'datetime.datetime'
+		return int(
+			(timezone.now().date() - self.birth_date) / datetime.timedelta(days=365)
+		)
 
 	@property
 	def is_suspended(self):
-		pass
+		return self.suspensions.filter(
+			over_on__gte=timezone.now()
+		).exists()
+
+	def clean(self):
+		# Don't allow both pinned artist post and pinned non artist post
+		if self.pinned_artist_post and self.pinned_non_artist_post:
+			raise ValidationError(
+				_("Both an artist post and a non artist post can't be pinned.")
+			)
+
+		# Only accept users older than 13(ref. COPPA) 
+		# and younger than 120 (in 2021, oldest person alive is 118).
+		if self.age < USER_MIN_AGE: 
+			raise ValidationError(
+				_("You need to be at least 13 years old to create an account.")
+			)
+
+		if self.age > USER_MAX_AGE: 
+			raise ValidationError(
+				_("Come on, you can't be that old.")
+			) 
 
 	def save(self, *args, **kwargs):
 		# Title case display_name
 		if not self.pk:
 			self.display_name = self.display_name.title()
+
+		# See https://stackoverflow.com/q/4441539/
+		# why-doesnt-djangos-model-save-call-full-clean/
+		self.clean()
 		super().save(*args, **kwargs)
-
-	def delete(self, *args, **kwargs):
-		really_delete = kwargs.pop('really_delete', False)
-
-		if really_delete:
-			return super().delete(*args, **kwargs) 
-		else:
-			self.deactivate()
 			
 	def get_absolute_url(self):
 		pass
 
+	class Meta:
+		db_table = 'accounts\".\"user'
+		constraints = [
+			models.UniqueConstraint(
+				fields=['username'],
+				name='unique_username',
+				include=['display_name']
+			),
+			# Restrict age limit to below 120(USER_MAX_AGE) and above 13(USER_MIN_AGE)
+			# birth_year <= current_year - 13 and
+			# birth_year >= current_year - 120 
+			models.CheckConstraint(
+				check=
+					Q(
+						birth_date__lte=timezone.now().date() - 
+						# Convert years to days so as to use timedelta object
+						datetime.timedelta(days=USER_MIN_AGE*365)
+					) & 
+					Q(
+						birth_date__gte=timezone.now().date() -
+						datetime.timedelta(days=USER_MAX_AGE*365)	
+					),
+				name='age_gte_13_and_lte_120'
+			)
+		]
+	
 
 class UserBlocking(models.Model):
 	blocker = models.ForeignKey(
@@ -227,6 +298,9 @@ class UserBlocking(models.Model):
 		related_name='+'
 	)
 	blocked_on = models.DateTimeField(auto_now_add=True, editable=False)
+
+	def __str__(self):
+		return f'{str(self.blocker)} blocks {str(self.blocked)}'
 
 	class Meta:
 		db_table = 'accounts\".\"user_blocking'
@@ -253,6 +327,9 @@ class UserFollow(models.Model):
 	)
 	followed_on = models.DateTimeField(auto_now_add=True, editable=False)
 
+	def __str__(self):
+		return f'{str(self.follower)} follows {str(self.following)}'
+
 	class Meta:
 		db_table = 'accounts\".\"user_follow'
 		constraints = [
@@ -263,7 +340,12 @@ class UserFollow(models.Model):
 		]
 
 
-class Suspension(models.Model):
+class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
+	SUSPENSION_REASONS = [
+		('SP', _("Spam")),
+		('AB', _("Abusive/Hate speech")),
+	]
+
 	# Remember only staff can add suspension
 	user = models.ForeignKey(
 		User, 
@@ -272,18 +354,25 @@ class Suspension(models.Model):
 		related_name='suspensions',
 		related_query_name='suspension'
 	)
-	suspended_on = models.DateTimeField(auto_now_add=True)
-	period = models.DurationField(default=datetime.timedelta(days=1))
+	given_on = models.DateTimeField(auto_now_add=True)
+	duration = models.DurationField(default=datetime.timedelta(days=1))
+	reason = models.CharField(choices=SUSPENSION_REASONS, max_length=2, default='AB')
 	over_on = models.DateTimeField()
+
+	def __str__(self):
+		return f'From {self.given_on} to {self.over_on} ({str(self.period)})'
 
 	@property
 	def is_active(self):
 		return self.over_on > timezone.now()
 
+	@property
+	def time_left(self):
+		return self.over_on - timezone.now()
+
 	def save(self, *args, **kwargs):
 		if not self.pk:
-			self.over_on = self.suspended_on + self.period
-
+			self.over_on = self.given_on + self.period
 		super().save(*args, **kwargs)
 
 	class Meta:
@@ -302,6 +391,9 @@ class Settings(models.Model):
 	site_settings = models.JSONField(default=dict)
 	mentions_settings = models.JSONField(default=dict)
 	email_settings = models.JSONField(default=dict)
+
+	def __str__(self):
+		return f"{str(self.user)}'s settings"
 
 	class Meta:
 		db_table = 'accounts\".\"settings'

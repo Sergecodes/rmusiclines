@@ -1,9 +1,11 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from taggit.managers import TaggableManager
 from taggit.models import TaggedItemBase
 
+from core.utils import UsesCustomSignal
 from .operations import NonArtistPostOperations
 from ..common.models import (
     Post, PostHashtag, 
@@ -12,7 +14,7 @@ from ..common.models import (
 )
 
 
-class NonArtistPost(Post, NonArtistPostOperations):
+class NonArtistPost(Post, NonArtistPostOperations, UsesCustomSignal):
 	hashtags = TaggableManager(
 		verbose_name=_('Hashtags'), 
 		through='HashtaggedNonArtistPost',
@@ -90,6 +92,9 @@ class NonArtistPostPhoto(models.Model):
 	photo_width = models.PositiveIntegerField(_('Photo width'))
 	photo_height = models.PositiveIntegerField(_('Photo height'))
 
+	def __str__(self):
+		return f'Post {str(self.post)} photo'
+
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_photo'
 
@@ -103,6 +108,9 @@ class NonArtistPostVideo(models.Model):
 		related_query_name='video'
 	)
 	video = models.FileField()
+
+	def __str__(self):
+		return f'Post {str(self.post)} video'
 
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_video'
@@ -148,6 +156,15 @@ class NonArtistPostMention(models.Model):
 		related_name='+'
 	)
 
+	def __str__(self):
+		return f'Post {str(self.post)} mentions {str(self.user_mentioned)}'
+
+	@property
+	def mentioned_on(self):
+		# A user is mentioned only when a post is created since
+		# a posts can't be edited
+		return self.post.created_on
+
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_user_mention'
 		constraints = [
@@ -158,7 +175,7 @@ class NonArtistPostMention(models.Model):
 		]
 
 
-class NonArtistPostRepost(PostRepost):
+class NonArtistPostRepost(PostRepost, UsesCustomSignal):
 	"""Non artist post and reposter through model"""
 
 	post = models.ForeignKey(
@@ -176,6 +193,9 @@ class NonArtistPostRepost(PostRepost):
 		related_query_name='non_artist_post_repost',
 	)
 
+	def __str__(self):
+		return f'Post {str(self.post)} reposted by {str(self.reposter)}'
+
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_repost'
 		ordering = ['-reposted_on']
@@ -187,7 +207,7 @@ class NonArtistPostRepost(PostRepost):
 		]
 
 
-class NonArtistPostRating(PostRating):
+class NonArtistPostRating(PostRating, UsesCustomSignal):
 	"""Non artist post and rater through model"""
 
 	post = models.ForeignKey(
@@ -205,6 +225,9 @@ class NonArtistPostRating(PostRating):
 		related_query_name='non_artist_post_rating',
 	)
 
+	def __str__(self):
+		return f'Post {str(self.post)} rated {self.num_stars} star(s) by {str(self.reposter)}'
+	
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_rating'
 		constraints = [
@@ -212,10 +235,14 @@ class NonArtistPostRating(PostRating):
 				fields=['post', 'rater'],
 				name='unique_non_artist_post_rating'
 			),
+			models.CheckConstraint(
+				check=Q(num_stars__gte=1) & Q(num_stars__lte=5),
+				name='non_artist_post_rating_stars_betw_1_and_5'
+			)
 		]
 
 
-class NonArtistPostBookmark(models.Model):
+class NonArtistPostBookmark(models.Model, UsesCustomSignal):
 	"""Non artist post and bookmarker through model"""
 
 	post = models.ForeignKey(
@@ -232,6 +259,9 @@ class NonArtistPostBookmark(models.Model):
 	)
 	bookmarked_on = models.DateTimeField(auto_now_add=True, editable=False)
 
+	def __str__(self):
+		return f'Post {str(self.post)} bookmarked by {str(self.bookmarker)}'
+	
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_bookmark'
 		constraints = [
@@ -240,7 +270,6 @@ class NonArtistPostBookmark(models.Model):
 				name='unique_non_artist_post_bookmark'
 			),
 		]
-
 
 class NonArtistPostDownload(models.Model):
 	"""Non artist post and downloader through model"""
@@ -260,11 +289,23 @@ class NonArtistPostDownload(models.Model):
 	)
 	downloaded_on = models.DateTimeField(auto_now_add=True, editable=False)
 
+	def __str__(self):
+		return f'Post {str(self.post)} downloaded by {str(self.downloader)}'
+	
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_download'
 
 
-class NonArtistPostComment(Comment):
+class NonArtistPostComment(Comment, UsesCustomSignal):
+	parent = models.ForeignKey(
+		'self',
+		on_delete=models.CASCADE,
+		related_name='replies',
+		related_query_name='reply',
+		db_column='parent_comment_id',
+		blank=True,
+		null=True
+	)
 	poster = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
 		db_column='user_id',
@@ -286,11 +327,16 @@ class NonArtistPostComment(Comment):
 		related_query_name='liked_non_artist_post_comment'
 	)
 
+	@property
+	def is_parent(self):
+		return True if self.parent is None else False
+
 	class Meta: 
 		db_table = 'posts\".\"non_artist_post_comment'
+		ordering = ['-num_likes', '-created_on']
 
 
-class NonArtistPostCommentLike(CommentLike):
+class NonArtistPostCommentLike(CommentLike, UsesCustomSignal):
 	comment = models.ForeignKey(
 		NonArtistPostComment,
 		db_column='non_artist_post_comment_id',
@@ -303,6 +349,9 @@ class NonArtistPostCommentLike(CommentLike):
 		on_delete=models.CASCADE,
 		related_name='+'
 	)
+
+	def __str__(self):
+		return f'Comment {str(self.comment)} liked by {str(self.liker)}'
 
 	class Meta:
 		db_table = 'posts\".\"non_artist_post_comment_like'

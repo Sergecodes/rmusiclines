@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
-from .models import Flag, FlagInstance
+from flagging.models.models import Flag, FlagInstance
 
 
 class InlineFlagInstance(admin.TabularInline):
