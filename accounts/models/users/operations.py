@@ -1,10 +1,11 @@
 """Contains operations for the various models as mixins"""
-
+from actstream.actions import follow, unfollow
 from django.core.exceptions import ValidationError
 from django.db.models import F
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from accounts.models.artists.models import Artist, ArtistFollow
 from posts.models.artist_posts.models import (
 	ArtistPostBookmark, ArtistPostDownload,
 	ArtistPostRating, ArtistPostRepost,
@@ -25,21 +26,35 @@ class UserOperations:
 		self.is_active = False
 		self.save(update_fields=['is_active', 'deactivated_on'])
 
+	def follow_artist(self, artist):
+		ArtistFollow.objects.create(follower=self, artist=artist)
+
+		# Add action
+		follow(self, artist)
+
+		artist.num_followers = F('num_followers') + 1
+		artist.save(update_fields=['num_followers'])
+
+
+	def unfollow_artist(self, artist):
+		ArtistFollow.objects.get(follower=self, artist=artist).delete()
+
+		# Remove action
+		unfollow(self, artist)
+
+		artist.num_followers = F('num_followers') - 1
+		artist.save(update_fields=['num_followers'])
+
+
 	def block_user(self, other):
 		from accounts.models.users.models import UserBlocking
 
-		UserBlocking.objects.add(
-			blocker=self, 
-			blocked=other
-		)
+		UserBlocking.objects.create(blocker=self, blocked=other)
 
 	def unblock_user(self, other):
 		from accounts.models.users.models import UserBlocking
-	
-		UserBlocking.objects.delete(
-			blocker=self, 
-			blocked=other
-		)
+
+		UserBlocking.objects.get(blocker=self, blocked=other).delete()
 
 	def has_blocked_user(self, other):
 		"""Return `True` if self has blocked other else `False`"""
@@ -52,6 +67,10 @@ class UserOperations:
 			follower=self,
 			followed=other
 		)
+
+		# Add action
+		follow(self, other)
+
 		self.num_following = F('num_following') + 1
 		self.save(update_fields=['num_following'])
 
@@ -61,15 +80,19 @@ class UserOperations:
 	def unfollow_user(self, other):
 		from accounts.models.users.models import UserFollow
 
-		UserFollow.objects.delete(
-			follower=self,
-			followed=other
-		)
+		UserFollow.objects.get(follower=self, followed=other).delete()
+
+		# Remove action
+		unfollow(self, other)
+		
 		self.num_following = F('num_following') - 1
 		self.save(update_fields=['num_following'])
 
 		other.num_followers = F('num_followers') - 1
 		other.save(update_fields=['num_followers'])
+
+	## Most of these methods have signals attached that 
+	# add or redure the corresponding attribute count.
 
 	def rate_artist_post(self, post, num_stars):
 		"""
@@ -94,28 +117,16 @@ class UserOperations:
 		)
 
 	def remove_artist_post_rating(self, post):
-		ArtistPostRating.objects.delete(
-			post=post,
-			rater=self,
-		)
+		ArtistPostRating.objects.get(post=post, rater=self).delete()
 
 	def remove_non_artist_post_rating(self, post):
-		NonArtistPostRating.objects.delete(
-			post=post,
-			rater=self,
-		)
+		NonArtistPostRating.objects.get(post=post, rater=self).delete()
 	
 	def download_artist_post(self, post):
-		ArtistPostDownload.objects.create(
-			post=post,
-			downloader=self
-		)
+		ArtistPostDownload.objects.create(post=post, downloader=self)
 
 	def download_non_artist_post(self, post):
-		NonArtistPostDownload.objects.create(
-			post=post,
-			downloader=self
-		)
+		NonArtistPostDownload.objects.create(post=post, downloader=self)
 
 	def num_downloads(self, month: int, year: int):
 		"""
@@ -144,16 +155,10 @@ class UserOperations:
 		)
 	
 	def remove_artist_post_bookmark(self, post):
-		ArtistPostBookmark.objects.delete(
-			post=post,
-			rater=self,
-		)
+		ArtistPostBookmark.objects.get(post=post, rater=self).delete()
 
 	def remove_non_artist_post_bookmark(self, post):
-		NonArtistPostBookmark.objects.delete(
-			post=post,
-			rater=self,
-		)
+		NonArtistPostBookmark.objects.get(post=post, rater=self).delete()
 	
 	def repost_artist_post(self, post, comment=''):
 		ArtistPostRepost.objects.create(
@@ -172,12 +177,12 @@ class UserOperations:
 	def delete_artist_post_repost(self, repost_id):
 		# Use repost_id since we can't delete by filtering on
 		# reposter and post.
-		ArtistPostRepost.objects.delete(id=repost_id)
+		ArtistPostRepost.objects.get(id=repost_id).delete()
 
 	def delete_artist_post_repost(self, repost_id):
 		# Use repost_id since we can't delete by filtering on
 		# reposter and post.
-		NonArtistPostRepost.objects.delete(id=repost_id)
+		NonArtistPostRepost.objects.get(id=repost_id).delete()
 
 
 class SuspensionOperations:

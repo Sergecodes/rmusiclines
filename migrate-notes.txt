@@ -1,0 +1,66 @@
+** POSTGRESQL **
+1. Create database user/role
+CREATE ROLE `rolename` LOGIN SUPERUSER PASSWORD 'password_string';
+
+2. Create schemas
+CREATE SCHEMA `schema_name` AUTHORIZATION `rolename`;
+GRANT ALL ON  SCHEMA `schema_name` TO `rolename`;
+("\dn+" to view schema access privileges")
+(ALTER SCHEMA `schema_name` OWNER TO `rolename`  to change owner of a schema)
+
+2. Set search_path for tables
+SET search_path TO `schema1`,`schema2`;
+
+3. Create collation via django-migration for accounts.user.username field
+from django.contrib.postgres.operations import CreateCollation
+
+CreateCollation(
+    'accounts\".\"case_insensitive',
+    provider='icu',
+    locale='und-u-ks-level2',
+    deterministic=False
+),
+
+3. Constraints on date of birth 
+- For users:
+ALTER TABLE accounts.user ADD CONSTRAINT "age_gte_13_and_lte_120" CHECK (
+    birth_date <= (now()::date - '13 years'::interval) AND 
+    birth_date >= (now()::date - '120 years'::interval)
+)
+
+- For artists:
+ALTER TABLE accounts.artist ADD CONSTRAINT "age_gte_15_and_lte_100" CHECK (
+    birth_date <= (now()::date - '15 years'::interval) AND 
+    birth_date >= (now()::date - '100 years'::interval)
+)
+
+4. Trigger on accounts.user to ensure both artist post and non artist post can't be pinned.
+CREATE FUNCTION pin_post() RETURNS trigger AS $pin_post$
+    BEGIN 
+        IF NEW.pinned_artist_post_id IS NOT NULL AND 
+        NEW.pinned_non_artist_post_id IS NOT NULL THEN
+            RAISE EXCEPTION 'You can''t pin both an artist post and a non artist post';
+        END IF;
+        RETURN NEW;
+    END;
+    $pin_post$ LANGUAGE plpgsql;
+
+CREATE TRIGGER pin_post BEFORE INSERT OR UPDATE ON accounts.user
+    FOR EACH ROW EXECUTE FUNCTION pin_post();
+
+5. Trigger on accounts.user to parse email before saving
+CREATE FUNCTION parse_email() RETURNS trigger as $parse_email$
+    BEGIN 
+        IF NEW.EMAIL IS NOT NULL THEN
+            NEW.EMAIL := LOWER(NEW.EMAIL);
+            NEW.EMAIL := REPLACE(NEW.EMAIL, 'googlemail', 'gmail');
+        END IF;
+        RETURN NEW;
+    END;
+    $parse_email$ LANGUAGE plpgsql;
+
+CREATE TRIGGER parse_email BEFORE INSERT OR UPDATE ON accounts.user
+    FOR EACH ROW EXECUTE FUNCTION parse_email();
+
+
+

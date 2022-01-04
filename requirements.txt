@@ -7,3 +7,10 @@ pyuca==1.2
 django-taggit==2.0.0
 shortuuid==1.0.8
 Pillow==8.4.0
+regex==2021.11.10
+django-paypal==1.1.2
+django-storages==1.12.3
+boto3==1.20.26
+easy-thumbnails==2.8
+opencv-python==4.5.5.62
+django-activity-stream==0.10.0

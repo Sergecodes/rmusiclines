@@ -1,12 +1,22 @@
 from django.conf import settings
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
+from easy_thumbnails.fields import ThumbnailerImageField
 from taggit.managers import TaggableManager
 from taggit.models import TaggedItemBase
 
 from accounts.models.artists.models import Artist
+from core.constants import FILE_STORAGE_CLASS
+from core.fields import DynamicStorageFileField
 from core.utils import UsesCustomSignal
+from flagging.mixins import FlagMixin
+from posts.constants import (
+	ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
+	ARTIST_POSTS_VIDEOS_UPLOAD_DIR
+)
+from posts.validators import validate_post_photo, validate_post_video
 from .operations import ArtistPostOperations
 from ..common.models import (
     Post, PostHashtag, 
@@ -15,7 +25,7 @@ from ..common.models import (
 )
 
 
-class ArtistPost(Post, ArtistPostOperations, UsesCustomSignal):
+class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 	# related_name can't be set on this class (TaggableManager)
 	hashtags = TaggableManager(
 		verbose_name=_('Hashtags'), 
@@ -84,6 +94,11 @@ class ArtistPost(Post, ArtistPostOperations, UsesCustomSignal):
 		blank=True
 	)
 
+	@property
+	def parent_comments(self):
+		"""Get comments that are comments to post and not replies"""
+		return self.overall_comments.filter(is_parent=True)
+
 	class Meta:
 		# See https://stackoverflow.com/a/1628855/ for why this syntax is used.
 		db_table = 'posts\".\"artist_post'
@@ -108,13 +123,19 @@ class ArtistPostPhoto(models.Model):
 	)
 
 	# Use width_field and height_field to optimize getting photo's width and height
-	photo = models.ImageField(
-		_('Photo'),
+	photo = ThumbnailerImageField(
+		thumbnail_storage=FILE_STORAGE_CLASS(), 
+		upload_to=ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
+		resize_source=dict(size=(1000, 1000), sharpen=True),
+		validators=[
+			FileExtensionValidator(['png, jpg, gif']), 
+			validate_post_photo
+		],
 		width_field='photo_width', 
 		height_field='photo_height'
 	)
-	photo_width = models.PositiveIntegerField(_('Photo width'))
-	photo_height = models.PositiveIntegerField(_('Photo height'))
+	photo_width = models.PositiveIntegerField()
+	photo_height = models.PositiveIntegerField()
 
 	def __str__(self):
 		return f'Post {str(self.post)} photo'
@@ -132,7 +153,14 @@ class ArtistPostVideo(models.Model):
 		related_name='video',
 		related_query_name='video'
 	)
-	video = models.FileField(_('Video'))
+	video = DynamicStorageFileField(
+		upload_to=ARTIST_POSTS_VIDEOS_UPLOAD_DIR, 
+		validators=[
+			FileExtensionValidator(['mp4', 'mov']), 
+			validate_post_video
+		],
+		blank=True
+	)
 
 	def __str__(self):
 		return f'Post {str(self.post)} video'
@@ -252,7 +280,7 @@ class ArtistPostRating(PostRating, UsesCustomSignal):
 	)
 
 	def __str__(self):
-		return f'Post {str(self.post)} rated {self.num_stars} star(s) by {str(self.reposter)}'
+		return f'Post {str(self.post)} rated {self.num_stars} star(s) by {str(self.rater)}'
 	
 	class Meta:
 		db_table = 'posts\".\"artist_post_rating'
@@ -262,8 +290,8 @@ class ArtistPostRating(PostRating, UsesCustomSignal):
 				name='unique_artist_post_rating'
 			),
 			models.CheckConstraint(
-				check=Q(num_stars__gte=1) & Q(num_stars__lte=5),
-				name='artist_post_rating_stars_betw_1_and_5'
+				check=Q(num_stars=1) | Q(num_stars=3) | Q(num_stars=5),
+				name='artist_post_rating_stars_is_1_or_3_or_5'
 			)
 		]
 
@@ -327,13 +355,15 @@ class ArtistPostDownload(models.Model):
 		db_table = 'posts\".\"artist_post_download'
 
 
-class ArtistPostComment(Comment, UsesCustomSignal):
+class ArtistPostComment(Comment, FlagMixin, UsesCustomSignal):
 	parent = models.ForeignKey(
 		'self',
 		on_delete=models.CASCADE,
 		related_name='replies',
 		related_query_name='reply',
 		db_column='parent_comment_id',
+		# Is nullable since comment can be direct comment on post 
+		# hence it doesn't have a parent comment
 		blank=True,
 		null=True
 	)
@@ -341,15 +371,8 @@ class ArtistPostComment(Comment, UsesCustomSignal):
 		settings.AUTH_USER_MODEL,
 		db_column='user_id',
 		on_delete=models.CASCADE,
-		related_name='artist_post_comments',
+		related_name='overall_artist_post_comments',
 		related_query_name='artist_post_comment'
-	)
-	post = models.ForeignKey(
-		ArtistPost,
-		db_column='artist_post_id',
-		on_delete=models.CASCADE,
-		related_name='comments',
-		related_query_name='comment'
 	)
 	likers = models.ManyToManyField(
 		settings.AUTH_USER_MODEL,
@@ -357,14 +380,25 @@ class ArtistPostComment(Comment, UsesCustomSignal):
 		related_name='liked_artist_post_comments',
 		related_query_name='liked_artist_post_comment'
 	)
-
-	@property
-	def is_parent(self):
-		return True if self.parent is None else False
+	users_mentioned = models.ManyToManyField(
+		settings.AUTH_USER_MODEL,
+		through='ArtistPostCommentMention',
+		related_name='mentioned_in_artist_post_comment',
+		related_query_name='mentioned_in_artist_post_comment',
+		blank=True
+	)
+	# Post on which comment was made
+	post_concerned = models.ForeignKey(
+		ArtistPost,
+		db_column='artist_post_concerned_id',
+		on_delete=models.CASCADE,
+		related_name='overall_comments',
+		related_query_name='comment'
+	)
 
 	class Meta: 
 		db_table = 'posts\".\"artist_post_comment'
-		ordering = ['-num_likes', '-created_on']
+		ordering = ['-num_likes', '-created_on', '-num_replies']
 
 
 class ArtistPostCommentLike(CommentLike, UsesCustomSignal):
@@ -390,6 +424,35 @@ class ArtistPostCommentLike(CommentLike, UsesCustomSignal):
 			models.UniqueConstraint(
 				fields=['comment', 'liker'],
 				name='unique_artist_post_comment_like'
+			),
+		]
+
+
+class ArtistPostCommentMention(models.Model):
+	"""Artist post comment and user mention through model"""
+
+	comment = models.ForeignKey(
+		ArtistPostComment,
+		db_column='artist_post_comment_id',
+		on_delete=models.CASCADE,
+		related_name='+'
+	)
+	user_mentioned = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		db_column='user_id',
+		on_delete=models.CASCADE,
+		related_name='+'
+	)
+
+	def __str__(self):
+		return f'Comment {str(self.comment)} mentions {str(self.user_mentioned)}'
+
+	class Meta:
+		db_table = 'posts\".\"artist_post_comment_user_mention'
+		constraints = [
+			models.UniqueConstraint(
+				fields=['comment', 'user_mentioned'],
+				name='unique_artist_post_comment_user_mention'
 			),
 		]
 
