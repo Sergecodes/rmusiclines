@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from ..constants import FLAGS_ALLOWED
+from ..constants import IS_FLAGGED_COUNT
 
 
 class FlagOperations:
@@ -25,12 +25,17 @@ class FlagOperations:
             code='invalid', 
             params={'state': state}
         )
+
+        # If there's a ValueError or TypeError, or the state is not 
+        # among the valid states raise the ValidationError
         try:
             state = int(state)
             if state not in [st.value for st in self.State]:
                 raise err
+
         except (ValueError, TypeError):
             raise err
+
         return state
 
     def get_verbose_state(self, state):
@@ -41,8 +46,10 @@ class FlagOperations:
                 return item[1]
 
     def toggle_state(self, state, moderator):
+        """Modify flag state if moderator rejects or resolves flag"""
         state = self.get_clean_state(state)
-        # toggle states occurs between rejected and resolved states only
+
+        # Toggle states occurs between rejected and resolved states only
         if state != self.State.REJECTED.value and state != self.State.RESOLVED.value:
             raise ValidationError(
                 _('%(state)s is an invalid state'), 
@@ -57,16 +64,17 @@ class FlagOperations:
         self.save()
 
     def toggle_flagged_state(self):
-        """Modify flag state if count is more than `FLAGS_ALLOWED`"""
+        """Modify flag state if object if flagged (count is `IS_FLAGGED_COUNT`)"""
         self.refresh_from_db()
         field = 'state'
         
-        if self.count > FLAGS_ALLOWED and (
+        if self.count == IS_FLAGGED_COUNT and (
             getattr(self, field) not in [self.State.RESOLVED.value, self.State.REJECTED.value]
         ):
             setattr(self, field, self.State.FLAGGED.value)
         else:
             setattr(self, field, self.State.UNFLAGGED.value)
+
         self.save(update_fields=[field])
 
 

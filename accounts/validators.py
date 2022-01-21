@@ -1,4 +1,6 @@
 # from django.core.exceptions import ValidationError
+
+from django.contrib.auth.password_validation import  UserAttributeSimilarityValidator
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 
@@ -18,4 +20,12 @@ class UserUsernameValidator(RegexValidator):
 		'all other characters are allowed(letters, numbers, and underscores)'
 	)
 	flags = 0
+
+
+class UserDisplayNameSimilarityPasswordValidator(UserAttributeSimilarityValidator):
+	"""Add user display_name to password similarity check"""
+	def __init__(self, *args, **kwargs):
+		user_attributes = ['username', 'email', 'display_name']
+		super().__init__(user_attributes)
+		
 

@@ -16,17 +16,19 @@ User = get_user_model()
 
 
 @receiver(post_save, sender=NonArtistPost)
-def set_post_attributes(sender, instance, created, raw, using, update_fields, **kwargs):
+def set_post_attributes(sender, instance, created, **kwargs):
     """Parse post and set related attributes such as users mentioned, hashtags, ..."""
 
-    print(update_fields)
+    update_fields = kwargs.get('update_fields')
+    if not update_fields:
+        update_fields = []
 
     # If object is newly created or body is updated
     # reset attributes of post.
-    if not update_fields or (type(update_fields) is list and 'body' in update_fields):
+    if not update_fields or 'body' in update_fields:
         post = instance
         post_content = post.body
-        
+
         post.hashtags.set(extract_hashtags(post_content))
         post.users_mentioned.set([
             User.objects.get(username=username) 
@@ -58,10 +60,12 @@ def decrement_user_post_count(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=NonArtistPostComment)
-def set_comment_mentioned_users(sender, instance, created, raw, using, update_fields, **kwargs):
-    print(update_fields)
+def set_comment_mentioned_users(sender, instance, created, **kwargs):
+    update_fields = kwargs.get('update_fields')
+    if not update_fields:
+        update_fields = []
 
-    if created or (type(update_fields) is list and 'body' in update_fields):
+    if created or 'body' in update_fields:
         comment = instance
         comment.users_mentioned.set([
             User.objects.get(username=username) 

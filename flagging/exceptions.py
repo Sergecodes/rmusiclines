@@ -15,5 +15,6 @@ class FlagBadRequest(APIException):
             self.status_code = status_code
         if not detail:
             detail = self.default_detail
+            
         self.detail = detail
 

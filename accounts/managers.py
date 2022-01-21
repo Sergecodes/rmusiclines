@@ -37,8 +37,25 @@ class UserManager(BaseUserManager):
         )
         user.password = make_password(password)
         user.save(using=self._db)
-
         return user
+
+    def create_staff_user(
+        self, username, email, password, display_name, 
+        birth_date, country, **extra_fields
+    ):
+        extra_fields.setdefault('is_mod', True)
+        extra_fields.setdefault('is_staff', True)
+
+        if extra_fields.get('is_mod') is not True:
+            raise ValueError('Staff must have is_mod=True.')
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Staff must have is_staff=True.')
+
+        return self.create_user(
+            username, email, password, 
+            display_name, birth_date, country, 
+            **extra_fields
+        )
 
     def create_superuser(
         self, username, email, password, display_name, 

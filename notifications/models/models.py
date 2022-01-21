@@ -165,17 +165,19 @@ class Notification(models.Model, NotificationOperations):
     )
 
 
-    ACCOUNT = 'A'       # related to users accounts
-    GENERAL = 'G'       # general notifications
-    MENTION = 'M'       # to users that were mentioned in a post
-    FLAG = 'F'          # to users whose post has been flagged 
-                        # (may be n times, telling them to modify it)
-    FOLLOW = 'FO'       # when a user follows another user
-    REPORTED = 'R'      # moderators only, for reported posts
-    RATING = 'RA'       # when user's post is rated
-    COMMENT = 'C'       # when a user's post is commented on
-    REPOST = 'RP'       # when a user's post is retweeted
-    COMMENT_LIKE = 'CL' # when a user's comment is liked
+    ACCOUNT = 'A'                   # Related to users accounts
+    GENERAL = 'G'                   # General notifications
+    MENTION = 'M'                   # To users that were mentioned in a post
+    FLAG = 'F'                      # To users whose post has been flagged 
+                                    # (may be n times, telling them to modify it)
+    FOLLOW = 'FO'                   # When a user follows another user
+    REPORTED = 'R'                  # Moderators only, for reported posts
+    RATING = 'RA'                   # When user's post is rated
+    COMMENT = 'C'                   # When a user's post is commented on
+    REPOST = 'RP'                   # When a user's post is retweeted
+    COMMENT_LIKE = 'CL'             # When a user's comment is liked
+    FLAGGED_CONTENT_DELETED = 'D'   # When a FLAGGED post(or comment) is deleted 
+                                    # (by moderator or automatically)
 
     NOTIFICATION_CATEGORIES = (
         (GENERAL, _('General')),
@@ -187,7 +189,8 @@ class Notification(models.Model, NotificationOperations):
         (RATING, _('Post rating')),
         (COMMENT, _('Comment')),
         (REPOST, _('Repost')),
-        (COMMENT_LIKE, _('Comment like'))
+        (COMMENT_LIKE, _('Comment like')),
+        (FLAGGED_CONTENT_DELETED, _('Flagged content deleted'))
     )
 
     level = models.CharField(choices=LEVEL_CODES, default=INFO, max_length=2)
@@ -234,8 +237,10 @@ class Notification(models.Model, NotificationOperations):
     action_object_object_id = models.CharField(max_length=255, blank=True)
     action_object = GenericForeignKey('action_object_content_type', 'action_object_object_id')
 
-    timestamp = models.DateTimeField(auto_now_add=True)
-    deleted = models.BooleanField(default=False, db_index=True)
+    timestamp = models.DateTimeField(auto_now_add=True, editable=False)
+    ## For now this field isn't used, so let's remove it.
+    # when setting SOFT_DELETE=True, re insert this field.
+    # deleted = models.BooleanField(default=False, db_index=True)
     unread = models.BooleanField(default=True)
     emailed = models.BooleanField(default=False)
 

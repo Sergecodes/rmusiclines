@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from flagging.models.models import Flag, FlagInstance
 from notifications.models.models import Notification
 from notifications.signals import notify
-from .constants import IS_FLAGGED_COUNT
+from .constants import IS_FLAGGED_COUNT, AUTO_DELETE_FLAGS_COUNT
 
 User = get_user_model()
 
@@ -21,32 +21,36 @@ def flagged(sender, instance, created, **kwargs):
 		flag.increase_count()
 		flag.toggle_flagged_state()
 
-		count, post = flag.count, flag.content_object
+		flag_count, post = flag.count, flag.content_object
 		poster = post.poster
 		# if post is considered FLAGGED,
 		# notify user, tell him one of his posts has been flagged
 		# notify moderators so they can take desired action; 
 		# delete the post or absolve it.
-		if count == IS_FLAGGED_COUNT: 
+		if flag_count == IS_FLAGGED_COUNT: 
 			notify.send(
 				sender=poster,  # just use same user as sender
 				recipient=poster, 
 				verb=_(
-					"Some users considered this post inappropriate. "
-					"Edit or delete it now to prevent suspension. "
-					"Also, ensure to avoid posting such posts in future."
+					'Some users reported this content because they found it "inappropriate". '
+					"If you think they are wrong, ignore this warning. "
+					"Otherwise, please delete this post to prevent your account from being suspended "
+					"or it will be deleted. "
+					"Also, do avoid posting such content in future. Thanks."
 				),
 				target=post,
-				category=Notification.FLAG
+				category=Notification.FLAG,
+				level=Notification.WARNING
 			)
 
+			# Use defined classmethod to get moderators
 			for moderator in User.moderators.all():
 				notify.send(
 					sender=moderator,  # just use moderator as sender
 					recipient=moderator, 
 					verb=_(
-						"This post has been FLAGGED. You can delete it if you find it "
-						"inappropriate or absolve if you find it appropriate."
+						"This content has been FLAGGED. You can delete it if you find it "
+						"inappropriate or absolve it if you find it appropriate."
 					),
 					target=post,
 					category=Notification.REPORTED
@@ -54,27 +58,24 @@ def flagged(sender, instance, created, **kwargs):
 
 			return
 
-		# if for some reason, post is still on site and has not yet been deleted by moderators
-		# and it is DOUBLY FLAGGED; delete it and notify poster.
-		# just use 2*IS_FLAGGED_COUNT so that user can have some time to edit post...
-		# and moderator can have small time(time for another user to add a flag) to review post. 
-		if count == 2 * IS_FLAGGED_COUNT:
-			pass
 
-		# if for some reason at this point post is stilll on site, delete post.
-		# and notify user
-		if count > 2 * IS_FLAGGED_COUNT:
+		# If post wasn't deleted and number of flags reaches auto deletion threshold,
+		# delete post.
+		if flag_count == AUTO_DELETE_FLAGS_COUNT:
+			# Delete post and corresponding flag object
 			post.delete()
+			flag.delete()
+
 			# Notify poster that his post has been deleted
 			# no `target` here since post has been deleted..
 			notify.send(
 				sender=poster,  # just use same user as sender
 				recipient=poster, 
 				verb=_(
-					"One of your posts has been deleted because it was considered "
-					"inappropriate by many users."
+					"One of your contents has been deleted because it was considered "
+					"inappropriate by many users. Please try to not post such content."
 				),
-				category=Notification.FLAG
+				category=Notification.FLAGGED_CONTENT_DELETED
 			)
 
 
@@ -100,6 +101,6 @@ def create_permission_groups(sender, **kwargs):
 
 
 def adjust_flagged_content(sender, **kwargs):
-	"""Adjust flag state perhaps after changing FLAGS_ALLOWED count"""
+	"""Adjust flag state perhaps after changing IS_FLAGGED_COUNT"""
 	for flag in Flag.objects.all():
 		flag.toggle_flagged_state()

@@ -4,7 +4,7 @@ from django.http import QueryDict
 from django.http.response import JsonResponse
 from django.utils.translation import gettext_lazy as _
 
-from flagging.managers import FlagManager
+from flagging.models.models import Flag
 from .exceptions import FlagBadRequest
 
 
@@ -19,12 +19,12 @@ class FlagMixin:
 		"""
 		To get the related Flag object for the corresponding model object .
 		"""
-		return FlagManager.get_flag(self)
+		return Flag.objects.get_flag(self)
 
 	@property
 	def is_flagged(self):
 		"""Return whether or not object is flagged"""
-		return FlagManager.is_flagged(self)
+		return Flag.objects.is_flagged(self)
 
 
 class BaseMixin:

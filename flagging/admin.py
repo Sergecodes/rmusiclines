@@ -9,7 +9,8 @@ from flagging.models.models import Flag, FlagInstance
 class InlineFlagInstance(admin.TabularInline):
     model = FlagInstance
     extra = 0
-    readonly_fields = ['flag', 'user', 'date_flagged', 'reason', 'info']
+    readonly_fields = ['flag', 'user', 'flagged_on', 'reason']
+    classes = ('grp-collapse grp-open', )
 
 
 class FlaggedContentAdmin(admin.ModelAdmin):
@@ -25,6 +26,12 @@ class FlaggedContentAdmin(admin.ModelAdmin):
     exclude = ['content_type', 'object_id']
     search_fields = ['content_object']
     inlines = [InlineFlagInstance]
+    # For django-grappelli
+    related_lookup_fields = {
+        'generic': [
+            ['content_type', 'object_id'],
+        ]
+    }
 
     def link_to_content_object(self, obj):
         link = reverse(

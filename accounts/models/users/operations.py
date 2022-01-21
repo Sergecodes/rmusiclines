@@ -1,11 +1,14 @@
 """Contains operations for the various models as mixins"""
+
 from actstream.actions import follow, unfollow
 from django.core.exceptions import ValidationError
 from django.db.models import F
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from accounts.models.artists.models import Artist, ArtistFollow
+from accounts.constants import USERNAME_CHANGE_WAIT_PERIOD
+from accounts.models.artists.models import ArtistFollow
+from flagging.models.models import Flag
 from posts.models.artist_posts.models import (
 	ArtistPostBookmark, ArtistPostDownload,
 	ArtistPostRating, ArtistPostRepost,
@@ -26,6 +29,35 @@ class UserOperations:
 		self.is_active = False
 		self.save(update_fields=['is_active', 'deactivated_on'])
 
+	def update_username(self, new_username: str):
+		"""
+		Update a user's username. This method should be used to modify
+		a user's username rather than directly calling save().
+		"""
+		if not self.can_change_username:
+			raise ValidationError(
+				_(
+					"You cannot change your username until the %s; "
+					"you need to wait %s days after changing your username."
+					%(str(self.can_change_username_until_date), str(USERNAME_CHANGE_WAIT_PERIOD))
+				)
+			)
+
+		self.username = new_username
+		self.last_changed_username_on = timezone.now()
+		self.save(update_fields=['username', 'last_changed_username_on'])
+
+	def absolve_content(self, content):
+		"""
+		Resolve the flag of a content. This content should use the FlagMixin.
+		User should be a moderator.
+		"""
+		if not self.is_mod:
+			raise ValidationError(_('Only moderators can absolve content'))
+
+		flag = content.flag
+		flag.toggle_state(Flag.State.RESOLVED, self)
+
 	def follow_artist(self, artist):
 		ArtistFollow.objects.create(follower=self, artist=artist)
 
@@ -34,7 +66,6 @@ class UserOperations:
 
 		artist.num_followers = F('num_followers') + 1
 		artist.save(update_fields=['num_followers'])
-
 
 	def unfollow_artist(self, artist):
 		ArtistFollow.objects.get(follower=self, artist=artist).delete()
@@ -92,7 +123,7 @@ class UserOperations:
 		other.save(update_fields=['num_followers'])
 
 	## Most of these methods have signals attached that 
-	# add or redure the corresponding attribute count.
+	# add or reduce the corresponding attribute count.
 
 	def rate_artist_post(self, post, num_stars):
 		"""
@@ -193,6 +224,6 @@ class SuspensionOperations:
 			raise ValidationError(_('Suspension is still ongoing'))
 			
 		self.is_active = False
-		self.save()
+		self.save(update_fields=['is_active'])
 
 

@@ -1,25 +1,55 @@
-** POSTGRESQL **
+** POSTGRESQL v 14**
+
 1. Create database user/role
 CREATE ROLE `rolename` LOGIN SUPERUSER PASSWORD 'password_string';
+CREATE DATABASE `db_name` OWNER `db_owner`;
+# CREATE DATABASE musicsite_db OWNER sergeman;
 
 2. Create schemas
 CREATE SCHEMA `schema_name` AUTHORIZATION `rolename`;
 GRANT ALL ON  SCHEMA `schema_name` TO `rolename`;
 ("\dn+" to view schema access privileges")
 (ALTER SCHEMA `schema_name` OWNER TO `rolename`  to change owner of a schema)
+"""
+CREATE SCHEMA django AUTHORIZATION sergeman;
+GRANT ALL ON  SCHEMA django TO sergeman;
+CREATE SCHEMA posts AUTHORIZATION sergeman;
+GRANT ALL ON  SCHEMA posts TO sergeman;
+CREATE SCHEMA flagging AUTHORIZATION sergeman;
+GRANT ALL ON  SCHEMA flagging TO sergeman;
+CREATE SCHEMA accounts AUTHORIZATION sergeman;
+GRANT ALL ON  SCHEMA accounts TO sergeman;
+CREATE SCHEMA notifications AUTHORIZATION sergeman;
+GRANT ALL ON  SCHEMA notifications TO sergeman;
+CREATE SCHEMA subscriptions AUTHORIZATION sergeman;
+GRANT ALL ON  SCHEMA subscriptions TO sergeman;
+"""
 
 2. Set search_path for tables
 SET search_path TO `schema1`,`schema2`;
+# SET search_path TO django,flagging,posts,accounts,notifications,subscriptions,public;
 
 3. Create collation via django-migration for accounts.user.username field
-from django.contrib.postgres.operations import CreateCollation
+#
+In file initial.py
 
-CreateCollation(
-    'accounts\".\"case_insensitive',
-    provider='icu',
-    locale='und-u-ks-level2',
-    deterministic=False
-),
+from django.contrib.postgres.operations import CreateCollation
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+    initial = True
+
+    operations = [
+        CreateCollation(
+            'accounts\".\"case_insensitive',
+            provider='icu',
+            locale='und-u-ks-level2',
+            deterministic=False
+        ),
+    ]
+#
+
 
 3. Constraints on date of birth 
 - For users:
@@ -34,8 +64,9 @@ ALTER TABLE accounts.artist ADD CONSTRAINT "age_gte_15_and_lte_100" CHECK (
     birth_date >= (now()::date - '100 years'::interval)
 )
 
+
 4. Trigger on accounts.user to ensure both artist post and non artist post can't be pinned.
-CREATE FUNCTION pin_post() RETURNS trigger AS $pin_post$
+CREATE OR REPLACE FUNCTION pin_post() RETURNS trigger AS $pin_post$
     BEGIN 
         IF NEW.pinned_artist_post_id IS NOT NULL AND 
         NEW.pinned_non_artist_post_id IS NOT NULL THEN
@@ -48,8 +79,9 @@ CREATE FUNCTION pin_post() RETURNS trigger AS $pin_post$
 CREATE TRIGGER pin_post BEFORE INSERT OR UPDATE ON accounts.user
     FOR EACH ROW EXECUTE FUNCTION pin_post();
 
+
 5. Trigger on accounts.user to parse email before saving
-CREATE FUNCTION parse_email() RETURNS trigger as $parse_email$
+CREATE OR REPLACE FUNCTION parse_email() RETURNS trigger as $parse_email$
     BEGIN 
         IF NEW.EMAIL IS NOT NULL THEN
             NEW.EMAIL := LOWER(NEW.EMAIL);
@@ -63,4 +95,62 @@ CREATE TRIGGER parse_email BEFORE INSERT OR UPDATE ON accounts.user
     FOR EACH ROW EXECUTE FUNCTION parse_email();
 
 
+6. Trigger on accounts.user to verify if user is permitted to change username
+CREATE OR REPLACE FUNCTION verify_username_change() RETURNS trigger as $verify_username_change$
+    BEGIN 
+        IF OLD.last_changed_username_on IS NULL THEN
+            RETURN NEW;
+        END IF;
+        IF now() > OLD.last_changed_username_on + '15 days'::interval THEN
+            RETURN NEW;
+        ELSE
+            RAISE EXCEPTION 'You can''t change change your username until 15 days after the last change.';
+        END IF;
+        RETURN NEW;
+    END;
+    $verify_username_change$ LANGUAGE plpgsql;
+
+CREATE TRIGGER verify_username_change 
+    BEFORE UPDATE OF username ON accounts.user
+    FOR EACH ROW 
+    WHEN (OLD.username IS DISTINCT FROM NEW.username)
+    EXECUTE FUNCTION verify_username_change();
+
+
+7. Trigger on posts.artist_post and posts.non_artist_post to ensure pinned comment is a parent comment
+CREATE OR REPLACE FUNCTION pin_artist_post_comment() RETURNS trigger AS $pin_artist_post_comment$
+    BEGIN 
+        IF (SELECT count(*) FROM posts.artist_post_comment WHERE id=NEW.pinned_comment_id
+        AND is_parent=TRUE) = 1 THEN
+            RETURN NEW;
+        ELSE
+            RAISE EXCEPTION 'You can only pin a parent comment';
+        END IF;
+    END;
+    $pin_artist_post_comment$ LANGUAGE plpgsql;
+
+CREATE TRIGGER pin_artist_post_comment 
+BEFORE INSERT OR UPDATE OF pinned_comment_id ON posts.artist_post
+FOR EACH ROW 
+WHEN (NEW.pinned_comment_id IS NOT NULL)
+EXECUTE FUNCTION pin_artist_post_comment();
+
+
+
+CREATE OR REPLACE FUNCTION pin_non_artist_post_comment() RETURNS trigger AS $pin_non_artist_post_comment$
+    BEGIN 
+        IF (SELECT count(*) FROM posts.non_artist_post_comment WHERE id=NEW.pinned_comment_id
+        AND is_parent=TRUE) = 1 THEN
+            RETURN NEW;
+        ELSE
+            RAISE EXCEPTION 'You can only pin a parent comment';
+        END IF;
+    END;
+    $pin_non_artist_post_comment$ LANGUAGE plpgsql;
+
+CREATE TRIGGER pin_non_artist_post_comment 
+BEFORE INSERT OR UPDATE OF pinned_comment_id ON posts.non_artist_post
+FOR EACH ROW 
+WHEN (NEW.pinned_comment_id IS NOT NULL)
+EXECUTE FUNCTION pin_non_artist_post_comment();
 

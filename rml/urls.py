@@ -4,10 +4,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.utils.translation import gettext_lazy as _
 
+import core.urls
+
 
 urlpatterns = [
 	path('i18n/', include('django.conf.urls.i18n')),
 	path('activity', include('actstream.urls')),
+	path('grappelli/', include('grappelli.urls')),
+	path('',  include(core.urls)),
 ]
 
 urlpatterns += i18n_patterns(

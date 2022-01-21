@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q
@@ -49,9 +50,13 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		related_query_name='post',
 		db_column='artist_id'
 	)
-	music_title = models.CharField(
-		_('Music title'), 
-		max_length=50
+	pinned_comment = models.OneToOneField(
+		'ArtistPostComment',
+		db_column='pinned_comment_id',
+		related_name='+',
+		on_delete=models.CASCADE,
+		blank=True,
+		null=True
 	)
 	users_mentioned = models.ManyToManyField(
 		settings.AUTH_USER_MODEL,
@@ -99,6 +104,21 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		"""Get comments that are comments to post and not replies"""
 		return self.overall_comments.filter(is_parent=True)
 
+	@property
+	def get_tags(self)-> list:
+		"""Return list of hashtags. Used in the graphql api to get tags of a post."""
+		return self.hashtags.all()
+
+	def clean(self):
+		# Ensure pinned comment is a parent comment
+		if pinned_comment := self.pinned_comment:
+			if pinned_comment.is_parent:
+				raise ValidationError(_('You can only pin a parent comment'))
+
+	def save(self, *args, **kwargs):
+		self.clean()
+		super.save(*args, **kwargs)
+
 	class Meta:
 		# See https://stackoverflow.com/a/1628855/ for why this syntax is used.
 		db_table = 'posts\".\"artist_post'
@@ -110,6 +130,13 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 				name='artist_post_desc_idx'
 			)
 		]
+		# constraints = [
+		# 	# Use trigger instead since this references a related field
+		# 	models.CheckConstraint(
+		# 		check=Q(pinned_comment__is_parent=True),
+		# 		name='pinned_artist_post_comment_is_parent'
+		# 	)
+		# ]
 
 
 class ArtistPostPhoto(models.Model):

@@ -1,9 +1,8 @@
-Django==3.2.9
+Django==3.2.10
 python-decouple==3.5
 psycopg2==2.9.2
 django-allauth==0.47.0
-django-countries==7.2.1
-pyuca==1.2
+django-countries[pyuca]==7.2.1
 django-taggit==2.0.0
 shortuuid==1.0.8
 Pillow==8.4.0
@@ -14,3 +13,11 @@ boto3==1.20.26
 easy-thumbnails==2.8
 opencv-python==4.5.5.62
 django-activity-stream==0.10.0
+django-grappelli==2.15.4
+django-extensions==3.1.5
+graphene-django==2.15.0
+django-filter==21.1
+djangorestframework==3.13.1
+django-taggit-serializer==0.1.7
+graphene-django-cud==0.9.1
+django-graphql-auth==0.3.16

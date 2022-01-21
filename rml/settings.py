@@ -26,6 +26,8 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
 SECRET_KEY = config('SECRET_KEY')
 USE_PROD_DB = config('USE_PROD_DB', cast=bool)
 USE_S3 = config('USE_S3', default=False, cast=bool)
+USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=True, cast=bool)
+
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
@@ -117,6 +119,8 @@ if DEBUG:
 # Application definition
 
 INSTALLED_APPS = [
+	# django-grappelli should be placed before django.contrib.admin
+	'grappelli',
 	'django.contrib.admin',
 	'django.contrib.auth',
 	'django.contrib.contenttypes',
@@ -134,8 +138,14 @@ INSTALLED_APPS = [
 	'allauth.socialaccount.providers.facebook',
 	'allauth.socialaccount.providers.google',
 	'allauth.socialaccount.providers.spotify',
+	'django_extensions',
+	'django_filters',
 	'easy_thumbnails',
+	'graphene_django',
+	'graphql_auth',
+	'graphql_jwt.refresh_token.apps.RefreshTokenConfig',
 	'paypal.standard.ipn',
+	'taggit_serializer',
 
 	# Project apps
 	'accounts',
@@ -187,6 +197,9 @@ AUTHENTICATION_BACKENDS = [
 	# Needed to login by username in Django admin, regardless of 'allauth'
 	'django.contrib.auth.backends.ModelBackend',
 
+	# Enable authentication using graphql_auth which implicitly uses graphql_jwt
+	'graphql_auth.backends.GraphQLAuthBackend',
+
 	# 'allauth' specific authentication methods, such as login by e-mail
 	'allauth.account.auth_backends.AuthenticationBackend'
 ]
@@ -203,6 +216,10 @@ AUTH_PASSWORD_VALIDATORS = [
 	},
 	{
 		'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+	},
+	# Custom validators
+	{
+		'NAME': 'accounts.validators.UserDisplayNameSimilarityPasswordValidator',
 	},
 ]
 
@@ -322,6 +339,23 @@ ACTSTREAM_SETTINGS = {
 }
 
 
+## django-grappelli
+GRAPPELLI_ADMIN_TITLE = 'FIDZIC MUSIC SITE'
+GRAPPELLI_AUTOCOMPLETE_SEARCH_FIELDS = {
+	'accounts': {
+		'User': ('id__exact', 'username__contains', 'display_name__icontains', ),
+		'Artist': ('id__exact', 'name__icontains', ),
+		'ArtistTag': ('id__iexact', 'name__icontains', ), 
+	},
+	'posts': {
+		'ArtistPost': ('uuid__iexact', 'body__icontains', ),
+		'NonArtistPost': ('uuid__iexact', 'body__icontains', ),
+		'PostHashtag': ('id__iexact', 'topic__icontains', )
+	},
+
+}
+
+
 ## django-taggit ##
 TAGGIT_CASE_INSENSITIVE = True
 
@@ -346,4 +380,66 @@ THUMBNAIL_DEBUG = DEBUG
 THUMBNAIL_DEFAULT_STORAGE = DEFAULT_FILE_STORAGE
 THUMBNAIL_SUBDIR = 'thumbs'
 # THUMBNAIL_WIDGET_OPTIONS = {}
+
+
+## graphene_django ##
+GRAPHENE = {
+    'SCHEMA': 'core.graphql_schema.schema',
+	'ATOMIC_MUTATION': True,
+	'MIDDLEWARE': [
+        'graphql_jwt.middleware.JSONWebTokenMiddleware',
+    ],
+	# 'DJANGO_CHOICE_FIELD_ENUM_V3_NAMING': True,
+	# 'DJANGO_CHOICE_FIELD_ENUM_CUSTOM_NAME': 'core.utils.graphene_enum_naming',
+
+}
+
+
+## graphql_auth ##
+GRAPHQL_AUTH = {
+    'LOGIN_ALLOWED_FIELDS': ['email', 'username'],
+    'ALLOW_LOGIN_NOT_VERIFIED': False,
+	'REGISTER_MUTATION_FIELDS': {
+		'email': 'String',
+		'username': 'String',
+		'display_name': 'String',
+		'country': 'String',
+		'birth_date': 'Date',
+	},
+	'REGISTER_MUTATION_FIELDS_OPTIONAL': [],
+	'UPDATE_MUTATION_FIELDS': [],
+	'USER_NODE_FILTER_FIELDS': {
+		'email': ['exact', ],
+		'username': ['exact', 'icontains', 'istartswith'],
+		'is_active': ['exact'],
+		'is_verified': ['exact'],
+		'is_premium': ['exact'],
+		'is_mod': ['exact'],
+		'status__archived': ['exact'],
+		'status__verified': ['exact'],
+		'status__secondary_email': ['exact'],
+		
+	}
+}
+
+
+## graphql_jwt ##
+GRAPHQL_JWT = {
+    "JWT_VERIFY_EXPIRATION": True,
+    "JWT_LONG_RUNNING_REFRESH_TOKEN": True,
+	"JWT_ALLOW_ANY_CLASSES": [
+        "graphql_auth.relay.Register",
+        "graphql_auth.relay.VerifyAccount",
+        "graphql_auth.relay.ResendActivationEmail",
+        "graphql_auth.relay.SendPasswordResetEmail",
+        "graphql_auth.relay.PasswordReset",
+        "graphql_auth.relay.ObtainJSONWebToken",
+        "graphql_auth.relay.VerifyToken",
+        "graphql_auth.relay.RefreshToken",
+        "graphql_auth.relay.RevokeToken",
+        "graphql_auth.relay.VerifySecondaryEmail",
+    ],
+}
+
+
 

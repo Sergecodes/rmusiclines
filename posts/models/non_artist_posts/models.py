@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q
@@ -37,6 +38,14 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		related_name='non_artist_posts',
 		related_query_name='non_artist_post',
 		db_column='user_id'
+	)
+	pinned_comment = models.OneToOneField(
+		'NonArtistPostComment',
+		db_column='pinned_comment_id',
+		related_name='+',
+		on_delete=models.CASCADE,
+		blank=True,
+		null=True
 	)
 	users_mentioned = models.ManyToManyField(
 		settings.AUTH_USER_MODEL,
@@ -77,6 +86,21 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 	@property
 	def parent_comments(self):
 		return self.overall_comments.filter(is_parent=True)
+
+	@property
+	def get_tags(self)-> list:
+		"""Return list of hashtags. Used in the graphql api to get tags of a post."""
+		return self.hashtags.all()
+
+	def clean(self):
+		# Ensure pinned comment is a parent comment
+		if pinned_comment := self.pinned_comment:
+			if pinned_comment.is_parent:
+				raise ValidationError(_('You can only pin a parent comment'))
+
+	def save(self, *args, **kwargs):
+		self.clean()
+		super.save(*args, **kwargs)
 
 	class Meta:
 		db_table = 'posts\".\"non_artist_post'

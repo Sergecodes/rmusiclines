@@ -10,7 +10,8 @@ def extract_hashtags(text)-> list:
     Return a list containing the hashtags in `text`.
     It takes only alphanumeric characters(including underscores).
     """
-    return re.findall(r'\B#\w*[a-zA-ZÀ-Ÿ]+\w*', text, re.UNICODE)
+    hashtag_list_with_hash = re.findall(r'\B#\w*[a-zA-ZÀ-Ÿ]+\w*', text, re.UNICODE)
+    return [hashtag_name.replace('#', '') for hashtag_name in hashtag_list_with_hash]
 
 
 def extract_mentions(text)-> list:

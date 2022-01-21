@@ -64,6 +64,11 @@ class Artist(models.Model, ArtistOperations):
 	def __str__(self):
 		return self.name
 
+	@property
+	def get_tags(self)-> list:
+		"""Return list of hashtags. Used in the graphql api to get tags of an artist."""
+		return list(self.tags.all())
+
 	def clean(self):
 		# Validate artist's age
 		age = get_age(self.birth_date)

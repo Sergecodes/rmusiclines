@@ -5,6 +5,7 @@ view only sponsored ads (ads where companies contacted us...)
 
     # TODO
 # add to site specification:
+(- remove avatar images ? )
 - posts/comments can be edited if they haven't lasted up to 3 minutes
 - moderator can notify admin to delete a post
 - specify site and notification settings
@@ -12,6 +13,10 @@ view only sponsored ads (ads where companies contacted us...)
 - post can be private
 - users can be mentioned in comments..
 - ratings for posts are now 1, 3 or 5 stars
+- remove music_title field.
+- user can change username but after changing username, they have to wait until
+after 15 days before they can change this. 
+- possibility for poster of post to pin comment(parent) under post.
 
 
 # other proposals
@@ -24,6 +29,7 @@ for videos where only posts with videos(and photos/gifs ?) will be displayed.
 Then on the home page all kinds of posts are displayed, or perhaps only non video posts..?.
 
 
+
 # add to database specification 
 - table indexes
 - pinned_artist_post or non_artist_post; not both.
@@ -33,11 +39,12 @@ Then on the home page all kinds of posts are displayed, or perhaps only non vide
 
 
 # backend coding (DUE JAN 13TH !!)
-- setup flagging
-- setup notifications 
-- install/setup django extensions; admin site and django-grappelli
-- create django rest framework serializers 
+- possibility to pin comment on post. validate that comment is a parent comment
+
+- setup graphql
+- setup notifications for views
 - test test test
+
 
 
 -- BEGIN FRONTEND

@@ -10,7 +10,8 @@ from shortuuid.django_fields import ShortUUIDField
 from taggit.models import TagBase
 
 from posts.constants import (
-	COMMENT_CAN_EDIT_TIME_LIMIT, POST_CAN_EDIT_TIME_LIMIT,
+	COMMENT_CAN_EDIT_TIME_LIMIT, 
+	POST_CAN_EDIT_TIME_LIMIT,
 	MAX_POST_LENGTH
 )
 from .operations import PostOperations, PostHashtagOperations
@@ -44,7 +45,6 @@ class Post(models.Model, PostOperations):
 	created_on = models.DateTimeField(auto_now_add=True, editable=False)
 	last_updated_on = models.DateTimeField(auto_now=True, editable=False)
 	is_private = models.BooleanField(default=False)
-	has_been_edited = models.BooleanField(default=False)
 	num_parent_comments = models.PositiveIntegerField(
 		_('Number of parent comments'),
 		default=0,
@@ -95,6 +95,11 @@ class Post(models.Model, PostOperations):
 			return False
 		return True
 
+	@property
+	def has_been_edited(self):
+		"""Returns whether a post has been edited after its creation or not"""
+		return self.created_on != self.last_updated_on
+
 	def clean(self):
 		if len(self.body) > MAX_POST_LENGTH:
 			raise ValidationError(
@@ -119,11 +124,11 @@ class PostHashtag(TagBase, PostHashtagOperations):
 	# However, unicode characters might be different 
 	# (eg. chinese slugs might turn out to be longer); so just 
 	# set the slug to a bigger max_length
-	topic = models.CharField(
-		verbose_name=pgettext_lazy('Hashtag topic', 'topic'),
+	name = models.CharField(
+        verbose_name=pgettext_lazy("Hashtag name", "name"), 
 		unique=True, 
 		max_length=40
-	)
+    )
 	slug = models.SlugField(
 		pgettext_lazy('Hashtag slug', 'slug'),
 		unique=True,
@@ -132,7 +137,7 @@ class PostHashtag(TagBase, PostHashtagOperations):
 	)
 
 	def clean(self):
-		hashtag = self.topic
+		hashtag = self.name
 
 		# `isalpha()` validates even unicode characters
 		if not hashtag.isalpha():
@@ -153,7 +158,7 @@ class PostHashtag(TagBase, PostHashtagOperations):
 				# Hashtag should be alphabetic
 				# See https://postgresql.org/docs/current/functions-matching.html
 				# (bracket expressions)
-				check=Q(topic__regex=r'^[[:alpha:]]+$'),
+				check=Q(name__regex=r'^[[:alpha:]]+$'),
 				name='hashtag_is_alphabetic'
 			)
 		]

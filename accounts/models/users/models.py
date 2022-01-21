@@ -15,7 +15,9 @@ from easy_thumbnails.fields import ThumbnailerImageField
 from accounts.constants import (
     USER_MIN_AGE, USER_MAX_AGE, 
     USERS_COVER_PHOTOS_UPLOAD_DIR, 
-    USERS_PROFILE_PICTURES_UPLOAD_DIR
+    USERS_PROFILE_PICTURES_UPLOAD_DIR,
+    USERNAME_CHANGE_WAIT_PERIOD, 
+    NON_PREMIUM_USER_MAX_DOWNLOADS_PER_MONTH,
 )
 from accounts.managers import UserManager
 from accounts.utils import get_age
@@ -27,16 +29,18 @@ from posts.models.non_artist_posts.models import NonArtistPost
 from .operations import UserOperations, SuspensionOperations
 
 
-
 class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal):
     username = models.CharField(
         _('Username'),
         max_length=15,
-        editable=False,
         # Enforce uniqueness via UniqueConstraint
         # unique=True,
         validators=[UserUsernameValidator()],
-        help_text=_('Your username should be less than 15 characters.'),
+        help_text=_(
+            'Your username should be less than 15 characters '
+            'and may contain only letters, numbers and underscores; '
+            'no other chareacters are allowed.'
+        ),
         error_messages={
             'unique': _('A user with that username already exists.'),
         },
@@ -122,6 +126,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     is_premium = models.BooleanField(default=False)
     verified_on = models.DateTimeField(null=True, blank=True, editable=False)
     deactivated_on = models.DateTimeField(null=True, blank=True, editable=False)
+    last_changed_username_on = models.DateTimeField(null=True, blank=True, editable=False)
 
     # Other users related info
     blocked_users = models.ManyToManyField(
@@ -178,6 +183,10 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         return f'{self.display_name}, @{self.username}'
 
     @classmethod
+    def moderators(cls):
+        return cls.objects.filter(is_mod=True)
+
+    @classmethod
     def active_users(cls):
         return cls.objects.filter(is_active=True)
 
@@ -188,6 +197,52 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     @classmethod
     def verified_users(cls):
         return cls.objects.filter(is_verified=True)
+
+    @property
+    def can_change_username(self):
+        """Determine if the user is permitted to change his username."""
+        last_changed_on = self.last_changed_username_on
+
+        # If this field is null, then user has never changed their username
+        # thus they are permitted to change it.
+        if not last_changed_on:
+            return True
+
+        # Else if user has already changed his username, check if he has
+        # permission to change it.
+        if timezone.now() > last_changed_on + USERNAME_CHANGE_WAIT_PERIOD:
+            return True
+        else:
+            return False
+
+    @property 
+    def can_change_username_until_date(self):
+        """Get the minimum date on which user can change his username."""
+        return self.last_changed_username_on + USERNAME_CHANGE_WAIT_PERIOD
+
+    @property
+    def can_download(self):
+        """Return whether or not a user can download posts."""
+        # Premium users and superuser can download any number of posts
+        if self.is_premium or self.is_superuser:
+            return True
+        
+        # Verify if user has reached monthly download limit
+        current_month, current_year = timezone.now().month, timezone.now().year
+        current_num_downloads = self.num_downloads(current_month, current_year)
+
+        if current_num_downloads == NON_PREMIUM_USER_MAX_DOWNLOADS_PER_MONTH:
+            return False
+        else:
+            return True
+
+    @property
+    def age(self):
+        return get_age(self.birth_date)
+
+    @property
+    def is_suspended(self):
+        return self.suspensions.filter(over_on__gte=timezone.now()).exists()
 
     @property
     def private_artist_posts(self):
@@ -212,15 +267,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     @property
     def parent_non_artist_post_comments(self):
         return self.overall_non_artist_post_comments.filter(is_parent=True)
-        
-    @property
-    def age(self):
-        return get_age(self.birth_date)
-
-    @property
-    def is_suspended(self):
-        return self.suspensions.filter(over_on__gte=timezone.now()).exists()
-
+       
     def clean(self):
         # Don't allow both pinned artist post and pinned non artist post
         if self.pinned_artist_post and self.pinned_non_artist_post:
@@ -365,10 +412,6 @@ class UserFollow(models.Model):
 
 
 class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
-    SUSPENSION_REASONS = [
-        ('SP', _("Spam")),
-        ('AB', _("Abusive/Hate speech")),
-    ]
 
     # Remember only staff can add suspension
     user = models.ForeignKey(
@@ -380,11 +423,11 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
     )
     given_on = models.DateTimeField(auto_now_add=True)
     duration = models.DurationField(default=datetime.timedelta(days=1))
-    reason = models.CharField(choices=SUSPENSION_REASONS, max_length=2, default='AB')
+    reason = models.TextField(blank=True)
     over_on = models.DateTimeField()
 
     def __str__(self):
-        return f'From {self.given_on} to {self.over_on} ({str(self.period)})'
+        return f'From {self.given_on} to {self.over_on} ({ str(self.period) })'
 
     @property
     def is_active(self):
@@ -394,7 +437,14 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
     def time_left(self):
         return self.over_on - timezone.now()
 
+    def clean(self):
+        # Superuser can't be suspended
+        if self.user.is_superuser:
+            raise ValidationError(_("You can't suspend a superuser."))
+
     def save(self, *args, **kwargs):
+        self.clean()
+
         if not self.pk:
             self.over_on = self.given_on + self.period
         super().save(*args, **kwargs)
@@ -421,5 +471,7 @@ class Settings(models.Model):
 
     class Meta:
         db_table = 'accounts\".\"settings'
+        verbose_name = _('Settings')
+        verbose_name_plural = _('Settings')
 
 

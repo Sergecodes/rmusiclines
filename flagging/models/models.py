@@ -3,7 +3,6 @@ from enum import IntEnum, unique
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -14,7 +13,11 @@ User = settings.AUTH_USER_MODEL
 
 
 class Flag(models.Model, FlagOperations):
-    """Used to add flag/moderation to a model"""
+    """
+    Used to add flag/moderation to a model. 
+    Use on models with a "poster" field or attribute and corresponding 'poster_id' attribute. 
+    This attribute is used to get the user that created the flagged content.
+    """
     
     @unique
     class State(IntEnum):
@@ -57,9 +60,10 @@ class Flag(models.Model, FlagOperations):
     @property
     def is_flagged(self):
         """
-        Return if flag is flagged or not. Flag is considered flag if its count is > FLAGS_ALLOWED.
+        Return if flag is flagged or not. Flag is considered flag 
+        if its count is > MAX_FLAGS_ALLOWED.
         Note that the flags state is updated when toggle_flagged_state() is called, 
-        and the latter is called after every new FlagInstance... 
+        and the latter is called after every new FlagInstance is created.
         """
         return self.state != self.State.UNFLAGGED.value
 
@@ -77,9 +81,11 @@ class Flag(models.Model, FlagOperations):
 class FlagInstance(models.Model):
     # Reasons displayed when flagging an object
     FLAG_REASONS = [
-        (1, _("Spam | Exists only to promote a service ")),
-        (2, _("Abusive | Intended at promoting hatred")),
-        (100, _('Something else'))
+        (1, _('Unwanted commercial content or spam')),
+        (2, _('Pornography or sexually explicit content')),
+        (3, _('Hate speech or graphic violence')),
+        (4, _('Abusive or intended at promoting hatred')),
+        (5, _('Harassment or bullying')),
     ]
 
     # Make a named tuple
@@ -106,34 +112,17 @@ class FlagInstance(models.Model):
         related_query_name='flag_instance',
         on_delete=models.CASCADE
     )
-    date_flagged = models.DateTimeField(auto_now_add=True)
+    flagged_on = models.DateTimeField(auto_now_add=True, editable=False)
     reason = models.SmallIntegerField(choices=FLAG_REASONS, default=reason_values[0])
-    info = models.TextField(blank=True)
 
     objects = FlagInstanceManager()
 
-    def clean(self):
-        # If something else is chosen, info should not be empty
-        if self.reason == self.reason_values[-1] and not self.info:
-            raise ValidationError(
-                {
-                    'info': ValidationError(
-                        _('Please provide some information why you choose to report the content'),
-                        code='required'
-                    )
-                }
-            )
-
-    def save(self, *args, **kwargs):
-        self.clean()
-        super().save(*args, **kwargs)
-
     class Meta:
         db_table = 'flagging\".\"flag_instance'
-        ordering = ['-date_flagged']
+        ordering = ['-flagged_on']
         indexes = [
             models.Index(
-                fields=['-date_flagged'],
+                fields=['-flagged_on'],
                 name='flag_instance_date_desc_idx'
             )
         ]

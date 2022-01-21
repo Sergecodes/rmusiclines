@@ -19,6 +19,7 @@ class FlagManager(models.Manager):
         return flag
 
     def is_flagged(self, model_obj):
+        """Returns whether `model_obj` is FLAGGED or not"""
         flag = self.get_flag(model_obj)
         return flag.is_flagged
 
@@ -43,62 +44,57 @@ class FlagInstanceManager(models.Manager):
                 _('%(reason)s is an invalid reason'),
                 params={'reason': reason},
                 code='invalid'
-                )
+            )
+
+        # If there's a ValueError or TypeError, or the reason is not 
+        # among the valid reasons, raise the ValidationError
         try:
             reason = int(reason)
             if reason in self.model.reason_values:
                 return reason
-            raise err
+            else:
+                raise err
+
 
         except (ValueError, TypeError):
             raise err
 
-    def _clean(self, reason, info):
-        cleaned_reason = self._clean_reason(reason)
-        cleaned_info = None
-
-        # If reason is set to last value (`100 - Something else`)
-        # and no extra info is passed, raise error
-        if cleaned_reason == self.model.reason_values[-1]:
-            cleaned_info = info
-            if not cleaned_info:
-                raise ValidationError(
-                    _('Please supply some information as the reason for flagging'),
-                    params={'info': info},
-                    code='required'
-                )
-        return cleaned_reason, cleaned_info
-
-    def create_flag(self, user, flag, reason, info):
-        """Create a FlagInstance"""
-        # user shouldn't be able to flag his post
-        # get poster_id not poster.id so as to minimize query
+    def create_flag(self, user, flag, reason):
+        """
+        Create a FlagInstance.
+        Returns a dict {'created': bool} or raises ValidationError
+        """
+        # User shouldn't be able to flag his post.
+        # Use object.poster_id not object.poster.id so as to minimize query
         content_object = flag.content_object
 
         if not hasattr(content_object, 'poster_id'):
             raise ValidationError(
-                _("This object doesn't have a poster_id")
+                _("This object doesn't have a poster_id attribute")
             )
-            # return {'created': False, 'msg': _("This object doesn't have a poster_id")}
 
         if content_object.poster_id == user.id:
-            # print("You can't flag your post")
-            return {'created': False, 'msg': _("You can't flag your own post.")}
+            raise ValidationError(
+                _("You can't flag your own post")
+            )
 
-        cleaned_reason, cleaned_info = self._clean(reason, info)
+        cleaned_reason = self._clean_reason(reason)
         try:
-            self.create(flag=flag, user=user, reason=cleaned_reason, info=cleaned_info)
+            self.create(flag=flag, user=user, reason=cleaned_reason)
             return {'created': True}
 
         except IntegrityError:
             raise ValidationError(
-                    _('This content has already been flagged by the user (%(user)s)'),
-                    params={'user': user},
-                    code='invalid'
-                )
+                _('This content has already been flagged by the user (%(user)s)'),
+                params={'user': user},
+                code='invalid'
+            )
 
     def delete_flag(self, user, flag):
-        """Delete flag instance"""
+        """
+        Delete flag instance
+        Returns a dict {'deleted': bool} or raises ValidationError
+        """
         try:
             self.get(user=user, flag=flag).delete()
             return {'deleted': True}
@@ -114,11 +110,10 @@ class FlagInstanceManager(models.Manager):
         """Create or delete flag instance."""
         # Get flag of object via FlagMixin
         flag_obj = model_obj.flag
-        info = kwargs.get('info', None)
         reason = kwargs.get('reason', None)
 
         if reason:
-            result = self.create_flag(user, flag_obj, reason, info)
+            result = self.create_flag(user, flag_obj, reason)
         else:
             result = self.delete_flag(user, flag_obj)
         return result
