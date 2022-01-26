@@ -1,8 +1,7 @@
 import datetime
 from django_countries.fields import CountryField
 from django.contrib.auth.models import (
-    AbstractBaseUser, 
-    PermissionsMixin
+    AbstractBaseUser, PermissionsMixin
 )
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
@@ -168,6 +167,8 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     num_parent_artist_post_comments = models.PositiveIntegerField(default=0)
     num_parent_non_artist_post_comments = models.PositiveIntegerField(default=0)
 
+    # EMAIL_FIELD needs to be set for graphql...
+    EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'username'
     # USERNAME_FIELD and password are required by default
     REQUIRED_FIELDS = ['display_name']   
@@ -275,19 +276,22 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
                 _(
                     "Both an artist post and a non artist post can't be pinned "
                     "(you can pin only one post)."
-                )
+                ),
+                code='multiple_post_pin'
             )
 
         # Only accept users older than 13(ref. COPPA) 
         # and younger than 120 (in 2021, oldest person alive is 118).
         if self.age < USER_MIN_AGE: 
             raise ValidationError(
-                _("You need to be at least 13 years old to create an account.")
+                _("You need to be at least 13 years old to create an account."),
+                code='not_old_enough'
             )
 
         if self.age > USER_MAX_AGE: 
             raise ValidationError(
-                _("Come on, you can't be that old.")
+                _("Come on, you can't be that old."),
+                code='too_old'
             ) 
 
     def save(self, *args, **kwargs):
@@ -345,7 +349,8 @@ class UserBlocking(models.Model):
     def clean(self):
         if self.blocker == self.blocked:
             raise ValidationError(
-                _("You can't block yourself.")
+                _("You can't block yourself."),
+                code="can't_block_self"
             )
 
     def save(self, *args, **kwargs):
@@ -389,7 +394,8 @@ class UserFollow(models.Model):
     def clean(self):
         if self.follower == self.following:
             raise ValidationError(
-                _("You can't follow yourself.")
+                _("You can't follow yourself."),
+                code="can't_follow_self"
             )
 
     def save(self, *args, **kwargs):
@@ -440,7 +446,10 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
     def clean(self):
         # Superuser can't be suspended
         if self.user.is_superuser:
-            raise ValidationError(_("You can't suspend a superuser."))
+            raise ValidationError(
+                _("You can't suspend a superuser."),
+                code="can't_suspend_superuser"
+            )
 
     def save(self, *args, **kwargs):
         self.clean()

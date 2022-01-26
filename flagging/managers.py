@@ -70,12 +70,14 @@ class FlagInstanceManager(models.Manager):
 
         if not hasattr(content_object, 'poster_id'):
             raise ValidationError(
-                _("This object doesn't have a poster_id attribute")
+                _("This object doesn't have a poster_id attribute"),
+                code='no_poster_id'
             )
 
         if content_object.poster_id == user.id:
             raise ValidationError(
-                _("You can't flag your own post")
+                _("You can't flag your own post"),
+                code="can't_flag_own_post"
             )
 
         cleaned_reason = self._clean_reason(reason)
@@ -87,7 +89,7 @@ class FlagInstanceManager(models.Manager):
             raise ValidationError(
                 _('This content has already been flagged by the user (%(user)s)'),
                 params={'user': user},
-                code='invalid'
+                code='already_flagged_by_user'
             )
 
     def delete_flag(self, user, flag):
@@ -103,7 +105,7 @@ class FlagInstanceManager(models.Manager):
             raise ValidationError(
                 _('This content has not been flagged by the user (%(user)s)'),
                 params={'user': user},
-                code='invalid'
+                code='not_flagged_by_user'
             )
 
     def set_flag(self, user, model_obj, **kwargs):

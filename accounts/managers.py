@@ -1,4 +1,3 @@
-from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import UserManager as BaseUserManager
 from django.db.models.query import QuerySet
 from django.utils import timezone
@@ -35,7 +34,7 @@ class UserManager(BaseUserManager):
             country=country,
             **extra_fields
         )
-        user.password = make_password(password)
+        user.set_password(password)
         user.save(using=self._db)
         return user
 

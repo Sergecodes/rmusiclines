@@ -40,7 +40,8 @@ class UserOperations:
 					"You cannot change your username until the %s; "
 					"you need to wait %s days after changing your username."
 					%(str(self.can_change_username_until_date), str(USERNAME_CHANGE_WAIT_PERIOD))
-				)
+				),
+				code="can't_change_username_yet"
 			)
 
 		self.username = new_username
@@ -53,7 +54,10 @@ class UserOperations:
 		User should be a moderator.
 		"""
 		if not self.is_mod:
-			raise ValidationError(_('Only moderators can absolve content'))
+			raise ValidationError(
+				_('Only moderators can absolve content'),
+				code="can't_absolve_content"
+			)
 
 		flag = content.flag
 		flag.toggle_state(Flag.State.RESOLVED, self)
@@ -221,7 +225,10 @@ class SuspensionOperations:
 
 	def end(self):
 		if self.is_active:
-			raise ValidationError(_('Suspension is still ongoing'))
+			raise ValidationError(
+				_('Suspension is still ongoing'),
+				code='ongoing_suspension'
+			)
 			
 		self.is_active = False
 		self.save(update_fields=['is_active'])

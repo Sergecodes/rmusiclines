@@ -2,13 +2,13 @@ import graphene
 from graphene_django import DjangoObjectType
 from graphene_django.filter import DjangoFilterConnectionField
 
-from core.utils import GrapheneRenderTaggitTags
+from core.utils import PKMixin
 from posts.models.non_artist_posts.models import (
     NonArtistPost, NonArtistPostComment
 )
 
 
-class NonArtistPostType(GrapheneRenderTaggitTags, DjangoObjectType):
+class NonArtistPostType(DjangoObjectType):
     class Meta:
         model = NonArtistPost
         exclude = ['downloaders']
@@ -16,7 +16,7 @@ class NonArtistPostType(GrapheneRenderTaggitTags, DjangoObjectType):
 
 # Graphene will automatically map the NonArtistPost model's fields onto the NonArtistPostNode.
 # This is configured in the NonArtistPostNode's Meta class (as you can see below)
-class NonArtistPostNode(GrapheneRenderTaggitTags, DjangoObjectType):
+class NonArtistPostNode(PKMixin, DjangoObjectType):
     class Meta:
         model = NonArtistPost
         exclude = ['downloaders']

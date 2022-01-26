@@ -22,7 +22,7 @@ class Query(UserQuery, MeQuery, NonArtistPostQuery, ArtistQuery, graphene.Object
 class Mutation(AuthRelayMutation, graphene.ObjectType):
     # Artist mutations
     debug = graphene.Field(DjangoDebug, name='__debug')
-    artist_create = CreateArtistMutation.Field()
+    create_artist = CreateArtistMutation.Field()
     # artist_delete = ArtistSerializerMutation.DeleteField()
     # artist_update = ArtistSerializerMutation.UpdateField()
     # artist_create = ArtistCreateMutation.Field()
@@ -33,5 +33,9 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     # artist_bulk_delete = ArtistBulkDeleteMutation.Field()
    
 
-schema = graphene.Schema(query=Query, mutation=Mutation)
+schema = graphene.Schema(
+    query=Query, 
+    mutation=Mutation, 
+    # types=[ArtistTagType]
+)
 

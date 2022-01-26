@@ -38,10 +38,14 @@ def validate_post_photo(post_photo):
             if (file_size := file.size) > MAX_PHOTO_SIZE:
                 raise ValidationError(
                     _('Please keep filesize under %s. Current filesize %s') % 
-                    (filesizeformat(MAX_PHOTO_SIZE), filesizeformat(file_size))
+                    (filesizeformat(MAX_PHOTO_SIZE), filesizeformat(file_size)),
+                    code='large_file'
                 )
         else:
-            raise ValidationError(_('Filetype not supported.'))
+            raise ValidationError(
+                _('Filetype not supported.'),
+                code='invalid'
+            )
     except AttributeError:
         pass
 
@@ -69,10 +73,14 @@ def validate_post_video(post_video):
             if (file_size := video.size) > MAX_VIDEO_SIZE:
                 raise ValidationError(
                     _('Please keep filesize under %s. Current filesize %s') % 
-                    (filesizeformat(MAX_VIDEO_SIZE), filesizeformat(file_size))
+                    (filesizeformat(MAX_VIDEO_SIZE), filesizeformat(file_size)),
+                    code='large_file'
                 )
         else:
-            raise ValidationError(_('Filetype not supported.'))
+            raise ValidationError(
+                _('Filetype not supported.'),
+                code='invalid'
+            )
     except AttributeError:
         pass
 
@@ -81,7 +89,8 @@ def validate_post_video(post_video):
     if duration > MAX_DURATION:
         raise ValidationError(
             _('Please keep duration under %s. Current duration %s and video time %s') % 
-            (MAX_DURATION, duration, video_time)
+            (MAX_DURATION, duration, video_time),
+            code='invalid'
         )
 
     # Validate resolution
@@ -89,7 +98,8 @@ def validate_post_video(post_video):
     if resolution < MIN_RESOLUTION or resolution > MAX_RESOLUTION:
         raise ValidationError(
             _('Please keep resolution between %s and %s. Current resolution %s') % 
-            (str(MIN_RESOLUTION), str(MAX_RESOLUTION), str(resolution))
+            (str(MIN_RESOLUTION), str(MAX_RESOLUTION), str(resolution)),
+            code='invalid'
         )
 
 

@@ -103,7 +103,8 @@ class Post(models.Model, PostOperations):
 	def clean(self):
 		if len(self.body) > MAX_POST_LENGTH:
 			raise ValidationError(
-				_('Post should have at most {} characters.'.format(MAX_POST_LENGTH))
+				_('Post should have at most {} characters.'.format(MAX_POST_LENGTH)),
+				code='invalid'
 			)
 
 	def save(self, *args, **kwargs):
@@ -142,7 +143,8 @@ class PostHashtag(TagBase, PostHashtagOperations):
 		# `isalpha()` validates even unicode characters
 		if not hashtag.isalpha():
 			raise ValidationError(
-				_("Hashtags should be alphabetic(can not contain symbols nor whitespace)")
+				_("Hashtags should be alphabetic(can not contain symbols nor whitespace)"),
+				code='invalid'
 			)
 		
 	def save(self, *args, **kwargs):
@@ -181,7 +183,8 @@ class PostRating(models.Model):
 
 		if self.num_stars not in valid_stars:
 			raise ValidationError(
-				_('Invalid rating, rating must have 1, 3 or 5 stars')
+				_('Invalid rating, rating must have 1, 3 or 5 stars'),
+				code='invalid'
 			)
 
 	def save(self, *args, **kwargs):

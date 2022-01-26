@@ -5,6 +5,7 @@
 # and https://simpleisbetterthancomplex.com/2015/11/26/
 # package-of-the-week-python-decouple.html
 
+from datetime import timedelta
 from decouple import config, Csv
 from django.utils.translation import gettext_lazy as _
 from pathlib import Path
@@ -204,6 +205,7 @@ AUTHENTICATION_BACKENDS = [
 	'allauth.account.auth_backends.AuthenticationBackend'
 ]
 
+
 AUTH_PASSWORD_VALIDATORS = [
 	{
 		'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -357,7 +359,7 @@ GRAPPELLI_AUTOCOMPLETE_SEARCH_FIELDS = {
 
 
 ## django-taggit ##
-TAGGIT_CASE_INSENSITIVE = True
+# TAGGIT_CASE_INSENSITIVE = True
 
 
 ## django-paypal settings
@@ -406,8 +408,19 @@ GRAPHQL_AUTH = {
 		'country': 'String',
 		'birth_date': 'Date',
 	},
-	'REGISTER_MUTATION_FIELDS_OPTIONAL': [],
-	'UPDATE_MUTATION_FIELDS': [],
+	'REGISTER_MUTATION_FIELDS_OPTIONAL': {
+		'bio': 'String',
+		'gender': 'String', 
+		'is_mod': 'Boolean'
+	},
+	'UPDATE_MUTATION_FIELDS': {
+		'display_name': 'String',
+		'country': 'String',
+		'birth_date': 'Date',
+		'gender': 'String', 
+		'bio': 'String',
+		'is_mod': 'Boolean'
+	},
 	'USER_NODE_FILTER_FIELDS': {
 		'email': ['exact', ],
 		'username': ['exact', 'icontains', 'istartswith'],
@@ -415,9 +428,9 @@ GRAPHQL_AUTH = {
 		'is_verified': ['exact'],
 		'is_premium': ['exact'],
 		'is_mod': ['exact'],
-		'status__archived': ['exact'],
-		'status__verified': ['exact'],
-		'status__secondary_email': ['exact'],
+		# 'status__archived': ['exact'],
+		# 'status__verified': ['exact'],
+		# 'status__secondary_email': ['exact'],
 		
 	}
 }
@@ -427,6 +440,8 @@ GRAPHQL_AUTH = {
 GRAPHQL_JWT = {
     "JWT_VERIFY_EXPIRATION": True,
     "JWT_LONG_RUNNING_REFRESH_TOKEN": True,
+	"JWT_EXPIRATION_DELTA": timedelta(minutes=72),
+    "JWT_REFRESH_EXPIRATION_DELTA": timedelta(days=7),
 	"JWT_ALLOW_ANY_CLASSES": [
         "graphql_auth.relay.Register",
         "graphql_auth.relay.VerifyAccount",
@@ -437,7 +452,7 @@ GRAPHQL_JWT = {
         "graphql_auth.relay.VerifyToken",
         "graphql_auth.relay.RefreshToken",
         "graphql_auth.relay.RevokeToken",
-        "graphql_auth.relay.VerifySecondaryEmail",
+        # "graphql_auth.relay.VerifySecondaryEmail",
     ],
 }
 

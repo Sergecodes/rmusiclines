@@ -2,10 +2,45 @@ import graphene
 from django.contrib.auth import get_user_model
 from graphene_django import DjangoObjectType
 from graphql_auth import relay, mutations
+from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
+from graphql_auth.decorators import verification_required
+from graphql_auth.settings import graphql_auth_settings
+from graphql_jwt.decorators import login_required
+from accounts.forms.users import UpdateUserForm
 # from posts.graphql_schema.artist_posts import ArtistPostType
-from posts.graphql_schema.non_artist_posts import NonArtistPostNode
+# from posts.graphql_schema.non_artist_posts import NonArtistPostNode
 
 User = get_user_model()
+
+
+
+class UpdateAccountMixin(Output):
+    """
+    Update user model fields, defined on settings.
+
+    User must be verified.
+    """
+    form = UpdateUserForm
+
+    @classmethod
+    @verification_required
+    def resolve_mutation(cls, root, info, **kwargs):
+        user = info.context.user
+        f = cls.form(kwargs, instance=user)
+
+        if f.is_valid():
+            f.save()
+            return cls(success=True)
+        else:
+            return cls(success=False, errors=f.errors.get_json_data())
+
+
+class UpdateAccount(
+    RelayMutationMixin, DynamicInputMixin, 
+    UpdateAccountMixin, graphene.ClientIDMutation
+):
+    __doc__ = UpdateAccountMixin.__doc__
+    _inputs = graphql_auth_settings.UPDATE_MUTATION_FIELDS
 
 
 class AuthRelayMutation(graphene.ObjectType):
@@ -16,13 +51,14 @@ class AuthRelayMutation(graphene.ObjectType):
     password_reset = relay.PasswordReset.Field()
     password_set = relay.PasswordSet.Field() # For passwordless registration
     password_change = relay.PasswordChange.Field()
-    update_account = relay.UpdateAccount.Field()
-    archive_account = relay.ArchiveAccount.Field()
+    # update_account = relay.UpdateAccount.Field()
+    update_account = UpdateAccount.Field()
+    # archive_account = relay.ArchiveAccount.Field()
     delete_account = relay.DeleteAccount.Field()
-    send_secondary_email_activation =  relay.SendSecondaryEmailActivation.Field()
-    verify_secondary_email = relay.VerifySecondaryEmail.Field()
-    swap_emails = relay.SwapEmails.Field()
-    remove_secondary_email = mutations.RemoveSecondaryEmail.Field()
+    # send_secondary_email_activation =  relay.SendSecondaryEmailActivation.Field()
+    # verify_secondary_email = relay.VerifySecondaryEmail.Field()
+    # swap_emails = relay.SwapEmails.Field()
+    # remove_secondary_email = mutations.RemoveSecondaryEmail.Field()
 
     # django-graphql-jwt inheritances
     token_auth = relay.ObtainJSONWebToken.Field()

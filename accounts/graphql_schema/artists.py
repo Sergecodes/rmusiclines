@@ -1,36 +1,42 @@
 import graphene
-from django.contrib.auth import get_user
 from graphene_django import DjangoObjectType
 from graphene_django_cud.mutations import DjangoCreateMutation
 
 from accounts.models.artists.models import Artist, ArtistTag
-from core.utils import GrapheneRenderTaggitTags
+from core.utils import PKMixin
 
 
-## Type
-class ArtistTagType(DjangoObjectType):
-    class Meta:
-        model = ArtistTag
-        exclude_fields = ['slug']
+## Types
+# class ArtistTagType(DjangoObjectType):
+#     class Meta:
+#         model = ArtistTag
+#         exclude_fields = ['slug']
 
 
-class ArtistType(GrapheneRenderTaggitTags, DjangoObjectType):
+# class ArtistTagNode(PKMixin, DjangoObjectType):
+#     class Meta:
+#         model = ArtistTag
+#         exclude_fields = ['slug']
+#         interfaces = [graphene.relay.Node, ]
+
+
+# class ArtistType(PKMixin, DjangoObjectType):
+#     class Meta:
+#         model = Artist
+#         fields = '__all__'
+
+
+class ArtistNode(PKMixin, DjangoObjectType):
     class Meta:
         model = Artist
-        fields = '__all__'
+        interfaces = [graphene.relay.Node, ]
 
 
-class ArtistNode(GrapheneRenderTaggitTags, DjangoObjectType):
-    class Meta:
-        model = Artist
-        interfaces = [graphene.relay.Node]
-
-
-## Query
+## Queries
 class ArtistQuery(graphene.ObjectType):
-    all_artists = graphene.List(ArtistType)
+    all_artists = graphene.List(ArtistNode)
     artist_by_name = graphene.Field(
-        ArtistType, 
+        ArtistNode, 
         name=graphene.String(required=True)
     )
 
@@ -45,27 +51,31 @@ class ArtistQuery(graphene.ObjectType):
 
 
 ## Mutations
-# Create mutations
 class CreateArtistMutation(DjangoCreateMutation):
-    @classmethod
-    def before_mutate(cls, root, info, *args, **kwargs):
-        print("in before mutate mehtod")
-        print(root)
-        print(info.context)
-        print(info.context.user.is_authenticated)
-        print(kwargs)
-        print(get_user(info.context))
-        return super().before_mutate(root, info, kwargs.get('input'))
+    artist_tags = graphene.List(graphene.String, required=False)
 
-    class Arguments:
-        tags = graphene.List(ArtistTagType, required=False)
+    @classmethod
+    def after_mutate(cls, root, info, input, obj, return_data):
+        # Set tags of artist
+        if tags := input.get('artist_tags'):
+            obj.tags.add(*tags)
+
+        return super().after_mutate(root, info, input, obj, return_data)
 
     class Meta:
         model = Artist
+        # Exclude the `tags` field coz graphql complaints that it doesn't
+        # know how to convert(serialize) it 
         exclude_fields = ('tags', )
         optional_fields = ('slug', 'followers', )
-        login_required = True
+        # Ensure to use a name other than 'tags' else the tags will be 
+        # sent to the corresponding model object as a list and will raise errors
+        # when trying to save the object.
+        custom_fields = {
+            "artist_tags": graphene.List(graphene.String, required=False)
+        }
         
+
 
 
 # class ArtistCreateMutation(

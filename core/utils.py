@@ -1,16 +1,18 @@
 """Contains project-wide utilities"""
 
-from django_countries import countries
-from graphene import List, String
-from django.contrib.contenttypes.models import ContentType
-from django.utils.module_loading import import_string
-from graphene_django.converter import (
-    convert_choices_to_named_enum_with_descriptions, 
-    convert_django_field
-)
-from taggit.managers import TaggableManager
+import graphene
 
-from core.constants import GENDERS
+from django.contrib.contenttypes.models import ContentType
+# from django_countries import countries
+# from graphene import List, String
+# from django.utils.module_loading import import_string
+# from graphene_django.converter import (
+#     convert_choices_to_named_enum_with_descriptions, 
+#     convert_django_field
+# )
+# from taggit.managers import TaggableManager
+
+# from core.constants import GENDERS
 
 
 class UsesCustomSignal:
@@ -26,27 +28,35 @@ def get_content_type(model_obj):
     return ContentType.objects.get_for_model(model_obj)
 
 
-class GrapheneRenderTaggitTags:
+class PKMixin:
     """
-    Use this mixin to enable graphene-django correctly render django-taggit 
-    tags (as a list of strings).
-    The corresponding model of the graphene type using this mixin should have a property
-    `get_tags` that returns the tags of the model (eg obj.tags.all())
+    Use with a graphene ObjectType to include pk of the model in fields
+    since relay overshadows the object's id with a global ID
     """
+    pk = graphene.Field(type=graphene.Int, source='pk')
 
-    # Make django-taggit's TaggableManager interpretable to graphene
-    @convert_django_field.register(TaggableManager)
-    def convert_field_to_string(field, registry=None):
-        print(field)
-        print("helloooo")
-        return List(String, source='get_tags')
+
+# class GrapheneRenderTaggitTags:
+#     """
+#     Use this mixin to enable graphene-django correctly render django-taggit 
+#     tags (as a list of strings).
+#     The corresponding model of the graphene type using this mixin should have a property
+#     `get_tags` that returns the tags of the model (eg obj.tags.all())
+#     """
+
+#     # Make django-taggit's TaggableManager interpretable to graphene
+#     @convert_django_field.register(TaggableManager)
+#     def convert_field_to_string(field, registry=None):
+#         print(field)
+#         print("helloooo")
+#         return List(String, source='get_tags')
 
 
 # Problem: The country field is a choices field; graphene parses it into an Enum.
 # Multiple fields have the country field, so this gives the same Enum name; => Error.
 # So we have to use a different enum name.
 # To this this, we neet to manually create out enum.
-CountryEnum = convert_choices_to_named_enum_with_descriptions('country', countries)
+# CountryEnum = convert_choices_to_named_enum_with_descriptions('country', countries)
 # GenderEnum = convert_choices_to_named_enum_with_descriptions('gender', GENDERS)
 
 

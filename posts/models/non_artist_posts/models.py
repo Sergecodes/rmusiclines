@@ -96,7 +96,10 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		# Ensure pinned comment is a parent comment
 		if pinned_comment := self.pinned_comment:
 			if pinned_comment.is_parent:
-				raise ValidationError(_('You can only pin a parent comment'))
+				raise ValidationError(
+					_('You can only pin a parent comment'),
+					code='not_parent_comment'
+				)
 
 	def save(self, *args, **kwargs):
 		self.clean()

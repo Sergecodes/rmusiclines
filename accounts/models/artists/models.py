@@ -76,8 +76,10 @@ class Artist(models.Model, ArtistOperations):
 		if not (age >= ARTIST_MIN_AGE and age <= ARTIST_MAX_AGE):
 			raise ValidationError(
 				_('Artists must be at least %d and at most %d years old.' % (
-					ARTIST_MIN_AGE, ARTIST_MAX_AGE
-				))
+						ARTIST_MIN_AGE, ARTIST_MAX_AGE
+					)
+				),
+				code='invalid'
 			)
 			
 	def save(self, *args, **kwargs):

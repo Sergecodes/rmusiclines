@@ -1,7 +1,10 @@
+from asyncio import SendfileNotAvailableError
 from django.core.exceptions import ValidationError
 from django.db.models.signals import pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
+from graphql_auth.models import UserStatus
+from graphql_auth.signals import user_verified
 
 from accounts.constants import USERNAME_CHANGE_WAIT_PERIOD
 from .models.users.models import User, Suspension
@@ -42,7 +45,8 @@ def check_username_change(sender, instance, **kwargs):
                         str(instance.can_change_username_until_date), 
                         str(USERNAME_CHANGE_WAIT_PERIOD)
                     )
-				)
+				),
+                code="can't_change_username_yet"
 			)
 
 
@@ -61,3 +65,11 @@ def end_suspension(sender, instance, **kwargs):
 
     if not really_delete:
         instance.end()
+
+
+@receiver(user_verified, sender=UserStatus)
+def mark_user_active(sender, user, **kwargs):
+    """Mark user as active after his account is verified using graphql"""
+    user.is_active = True
+    user.save(update_fields=['is_active'])
+
