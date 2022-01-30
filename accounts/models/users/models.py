@@ -28,8 +28,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     username = models.CharField(
         _('Username'),
         max_length=15,
-        # Enforce uniqueness via UniqueConstraint
-        # unique=True,
+        # Enforce uniqueness via UniqueConstraint on Meta class
         validators=[UserUsernameValidator()],
         help_text=_(
             'Your username should be less than 15 characters '
@@ -180,18 +179,22 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         return f'{self.display_name}, @{self.username}'
 
     @classmethod
+    @property
     def moderators(cls):
         return cls.objects.filter(is_mod=True)
 
     @classmethod
+    @property
     def active_users(cls):
         return cls.objects.filter(is_active=True)
 
     @classmethod
+    @property
     def premium_users(cls):
         return cls.objects.filter(is_premium=True)
 
     @classmethod
+    @property
     def verified_users(cls):
         return cls.objects.filter(is_verified=True)
 

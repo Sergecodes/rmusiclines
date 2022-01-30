@@ -413,14 +413,15 @@ GRAPHQL_AUTH = {
 		'gender': 'String', 
 		'is_mod': 'Boolean'
 	},
-	'UPDATE_MUTATION_FIELDS': {
-		'display_name': 'String',
-		'country': 'String',
-		'birth_date': 'Date',
-		'gender': 'String', 
-		'bio': 'String',
-		'is_mod': 'Boolean'
-	},
+	'UPDATE_MUTATION_FIELDS': [],
+	# 'UPDATE_MUTATION_FIELDS': {
+	# 	'display_name': 'String',
+	# 	'country': 'String',
+	# 	'birth_date': 'Date',
+	# 	'gender': 'String', 
+	# 	'bio': 'String',
+	# 	'is_mod': 'Boolean'
+	# },
 	'USER_NODE_FILTER_FIELDS': {
 		'email': ['exact', ],
 		'username': ['exact', 'icontains', 'istartswith'],

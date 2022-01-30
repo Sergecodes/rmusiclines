@@ -1,5 +1,6 @@
 
 # TODO
+- test changeUsername mutation
 - create "change email address mutation" (use ResendActivationEmail...)
 (what if a user registers with someone's email, but does not confirm the email.
 Can the rightful owner of the email register using the email; or an `email already exists`

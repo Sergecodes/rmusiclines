@@ -29,19 +29,22 @@ class UserOperations:
 		self.is_active = False
 		self.save(update_fields=['is_active', 'deactivated_on'])
 
-	def update_username(self, new_username: str):
+	def change_username(self, new_username: str):
 		"""
-		Update a user's username. This method should be used to modify
+		Change a user's username. This method should be used to modify
 		a user's username rather than directly calling save().
 		"""
 		if not self.can_change_username:
 			raise ValidationError(
 				_(
-					"You cannot change your username until the %s; "
-					"you need to wait %s days after changing your username."
-					%(str(self.can_change_username_until_date), str(USERNAME_CHANGE_WAIT_PERIOD))
+					"You cannot change your username until the %(can_change_date)s; "
+					"you need to wait %(wait_period)s days after changing your username."
 				),
-				code="can't_change_username_yet"
+				code="can't_change_username_yet",
+				params={
+					'can_change_date': str(self.can_change_username_until_date),
+					'wait_period': USERNAME_CHANGE_WAIT_PERIOD
+				}
 			)
 
 		self.username = new_username

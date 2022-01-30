@@ -1,4 +1,14 @@
+from django import forms
+from django.contrib.auth import get_user_model
 from graphql_auth.forms import UpdateAccountForm
+
+User = get_user_model()
+
+
+class ChangeUsernameForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ('username', )
 
 
 class UpdateUserForm(UpdateAccountForm):

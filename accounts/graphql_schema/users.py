@@ -1,52 +1,19 @@
 import graphene
 from django.contrib.auth import get_user_model
-from django.utils import timezone
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from graphene_django import DjangoObjectType
 from graphene_django_cud.mutations import DjangoPatchMutation
 from graphql import GraphQLError
-from graphql_auth import relay, mutations
-from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
-from graphql_auth.decorators import verification_required
-from graphql_auth.settings import graphql_auth_settings
+from graphql_auth import relay
+from graphql_jwt.decorators import login_required
 
-from accounts.constants import USERNAME_CHANGE_WAIT_PERIOD
-from accounts.forms.users import UpdateUserForm
+from accounts.validators import UserUsernameValidator
 from core.utils import PKMixin
 # from posts.graphql_schema.artist_posts import ArtistPostType
 # from posts.graphql_schema.non_artist_posts import NonArtistPostNode
 
 User = get_user_model()
-
-
-
-class UpdateAccountMixin(Output):
-    """
-    Update user model fields, defined on settings.
-
-    User must be verified.
-    """
-    form = UpdateUserForm
-
-    @classmethod
-    @verification_required
-    def resolve_mutation(cls, root, info, **kwargs):
-        user = info.context.user
-        f = cls.form(kwargs, instance=user)
-
-        if f.is_valid():
-            f.save()
-            return cls(success=True)
-        else:
-            return cls(success=False, errors=f.errors.get_json_data())
-
-
-class UpdateAccount(
-    RelayMutationMixin, DynamicInputMixin, 
-    UpdateAccountMixin, graphene.ClientIDMutation
-):
-    __doc__ = UpdateAccountMixin.__doc__
-    _inputs = graphql_auth_settings.UPDATE_MUTATION_FIELDS
 
 
 # Register the User model type else an arror will be raised
@@ -68,16 +35,13 @@ class PatchUserMutation(DjangoPatchMutation):
 
     @classmethod
     def check_permissions(cls, root, info, input, id, obj: User):
-        # Only current user can change their account, 
-        # (and super user for now)
+        # Only current user can update their account
 
         # The id used should be the pk not the global relay id
         # if not isinstance(id, int):
         #     raise GraphQLError(
         #         _("Use the primary key of the user which is an integer; relay ids are not supported"),
-        #         extensions={
-        #             'code': "invalid"
-        #         }
+        #         extensions={'code': "invalid"}
         #     ) 
 
         # Only logged in user is permitted to update their account
@@ -92,34 +56,30 @@ class PatchUserMutation(DjangoPatchMutation):
             )
 
 
-class ChangeUsernameMutation(DjangoPatchMutation):
-    class Meta:
-        model = User
-        login_required = True
-        # exclude_fields = ['id']
-        only_fields = ['username']
-        type_name = 'ChangeUsernameInput'
+class ChangeUsernameMutation(graphene.Mutation):
+    class Arguments:
+        new_username = graphene.String()
+
+    success = graphene.Boolean()
+    user = graphene.Field(UserType)
 
     @classmethod
-    def before_save(cls, root, info, input, id, obj: User):
-        if not obj.can_change_username:
+    @login_required
+    def mutate(cls, root, info, new_username):
+        # Validate username
+        UserUsernameValidator()(new_username)
+        
+        user = info.context.user
+
+        try:
+            user.change_username(new_username)
+        except ValidationError as err:
             raise GraphQLError(
-                _(
-					"You cannot change your username until the %s; "
-					"you need to wait %s days after changing your username."
-					%(
-                        str(obj.can_change_username_until_date), 
-                        str(USERNAME_CHANGE_WAIT_PERIOD)
-                    )
-				),
-                extensions={
-                    'code': "can't_change_username_yet"
-                }
+                err.message % err.params,
+                extensions={'code': err.code}
             )
 
-        # Update last changed username date
-        obj.last_changed_username_on = timezone.now()
-        return obj
+        return ChangeUsernameMutation(user=user, success=True)
 
 
 class AuthRelayMutation(graphene.ObjectType):
@@ -130,8 +90,7 @@ class AuthRelayMutation(graphene.ObjectType):
     password_reset = relay.PasswordReset.Field()
     password_set = relay.PasswordSet.Field() # For passwordless registration
     password_change = relay.PasswordChange.Field()
-    # update_account = relay.UpdateAccount.Field()
-    update_account = UpdateAccount.Field()
+    # update_account = UpdateAccount.Field()
     # archive_account = relay.ArchiveAccount.Field()
     delete_account = relay.DeleteAccount.Field()
     # send_secondary_email_activation =  relay.SendSecondaryEmailActivation.Field()
@@ -189,3 +148,44 @@ class UserQuery(graphene.ObjectType):
             return None
 
 '''
+
+
+
+
+'''
+from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
+from graphql_auth.decorators import verification_required
+from graphql_auth.settings import graphql_auth_settings
+
+from accounts.forms.users import UpdateUserForm
+
+
+class UpdateAccountMixin(Output):
+    """
+    Update user model fields, defined on settings.
+
+    User must be verified.
+    """
+    form = UpdateUserForm
+
+    @classmethod
+    @verification_required
+    def resolve_mutation(cls, root, info, **kwargs):
+        user = info.context.user
+        f = cls.form(kwargs, instance=user)
+
+        if f.is_valid():
+            f.save()
+            return cls(success=True)
+        else:
+            return cls(success=False, errors=f.errors.get_json_data())
+
+
+class UpdateAccount(
+    RelayMutationMixin, DynamicInputMixin, 
+    UpdateAccountMixin, graphene.ClientIDMutation
+):
+    __doc__ = UpdateAccountMixin.__doc__
+    _inputs = graphql_auth_settings.UPDATE_MUTATION_FIELDS
+'''
+
