@@ -1,9 +1,15 @@
-ADDITIONS:
-- trending posts, artists and users
-- paid advertisements for companies; and these ads will be shown to all users,
-view only sponsored ads (ads where companies contacted us...)
 
-    # TODO
+# TODO
+- create "change email address mutation" (use ResendActivationEmail...)
+(what if a user registers with someone's email, but does not confirm the email.
+Can the rightful owner of the email register using the email; or an `email already exists`
+error is raises ?? TEST THIS !)
+- create other models mutations
+- enable pfp and cover photo upload for user profile
+- setup social authentication (use firebase and django graphql social auth...)
+
+
+
 # add to site specification:
 (- remove avatar images ? )
 - posts/comments can be edited if they haven't lasted up to 3 minutes
@@ -19,6 +25,14 @@ after 15 days before they can change this.
 - possibility for poster of post to pin comment(parent) under post.
 
 
+# add to database specification 
+- table indexes
+- pinned_artist_post or non_artist_post; not both.
+- constraints on database fields(birth_date, num_stars, ) and field types 
+(this can be done on a table : field | type | constraints | extra(or misc)
+- ArtistFollow table
+
+
 # other proposals
 - possibility to filter posts for profanity? or this depends on users followers...
 - place button near post (like Youtube) for translation to user's
@@ -29,30 +43,10 @@ for videos where only posts with videos(and photos/gifs ?) will be displayed.
 Then on the home page all kinds of posts are displayed, or perhaps only non video posts..?.
 
 
-
-# add to database specification 
-- table indexes
-- pinned_artist_post or non_artist_post; not both.
-- constraints on database fields(birth_date, num_stars, ) and field types 
-(this can be done on a table : field | type | constraints | extra(or misc)
-- ArtistFollow table
-
-
-# backend coding (DUE JAN 13TH !!)
-- possibility to pin comment on post. validate that comment is a parent comment
-
-- setup graphql
-- setup notifications for views
-- test test test
-
-
-
--- BEGIN FRONTEND
-
-
-- implement emails(AWS SES) and TEST; after acquiring domain name
-- implement payment (paypal and wecashup) after corresponding frontend is developed
-- setup social authentication gateways (after corresponding frontend is developed)
+ADDITIONS:
+- trending posts, artists and users
+- paid advertisements for companies; and these ads will be shown to all users,
+view only sponsored ads (ads where companies contacted us...)
 
 
 # source /home/sergeman/.virtualenvs/musicsite-env/bin/activate

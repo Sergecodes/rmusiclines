@@ -1,6 +1,12 @@
-from django.contrib.auth.models import UserManager as BaseUserManager
+from django.contrib.auth.models import (
+    Permission, 
+    UserManager as BaseUserManager
+)
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.query import QuerySet
 from django.utils import timezone
+
+from accounts.models.artists.models import Artist
 
 
 class UserQuerySet(QuerySet):
@@ -20,7 +26,7 @@ class UserManager(BaseUserManager):
 
     def create_user(
         self, username, email, password, 
-        display_name, birth_date, country, 
+        display_name, birth_date, country,  
         **extra_fields
     ):  
         email = self.normalize_email(email)
@@ -36,6 +42,7 @@ class UserManager(BaseUserManager):
         )
         user.set_password(password)
         user.save(using=self._db)
+            
         return user
 
     def create_staff_user(
@@ -50,11 +57,19 @@ class UserManager(BaseUserManager):
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Staff must have is_staff=True.')
 
-        return self.create_user(
+        staff_user = self.create_user(
             username, email, password, 
             display_name, birth_date, country, 
             **extra_fields
         )
+        
+        # Get and set CUD(Create-Update-Delete) artist operations permissions
+        cud_artist_permissions = Permission.objects.filter(
+            content_type=ContentType.objects.get_for_model(Artist)
+        ).exclude(codename='view_artist')
+
+        staff_user.user_permissions.set(cud_artist_permissions)
+
 
     def create_superuser(
         self, username, email, password, display_name, 

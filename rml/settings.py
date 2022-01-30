@@ -391,7 +391,7 @@ GRAPHENE = {
 	'MIDDLEWARE': [
         'graphql_jwt.middleware.JSONWebTokenMiddleware',
     ],
-	# 'DJANGO_CHOICE_FIELD_ENUM_V3_NAMING': True,
+	'DJANGO_CHOICE_FIELD_ENUM_V3_NAMING': True,
 	# 'DJANGO_CHOICE_FIELD_ENUM_CUSTOM_NAME': 'core.utils.graphene_enum_naming',
 
 }
@@ -440,7 +440,7 @@ GRAPHQL_AUTH = {
 GRAPHQL_JWT = {
     "JWT_VERIFY_EXPIRATION": True,
     "JWT_LONG_RUNNING_REFRESH_TOKEN": True,
-	"JWT_EXPIRATION_DELTA": timedelta(minutes=72),
+	"JWT_EXPIRATION_DELTA": timedelta(days=3),
     "JWT_REFRESH_EXPIRATION_DELTA": timedelta(days=7),
 	"JWT_ALLOW_ANY_CLASSES": [
         "graphql_auth.relay.Register",

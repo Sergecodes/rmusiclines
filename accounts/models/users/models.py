@@ -1,8 +1,6 @@
 import datetime
 from django_countries.fields import CountryField
-from django.contrib.auth.models import (
-    AbstractBaseUser, PermissionsMixin
-)
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
@@ -12,10 +10,8 @@ from django.utils.translation import gettext_lazy as _
 from easy_thumbnails.fields import ThumbnailerImageField
 
 from accounts.constants import (
-    USER_MIN_AGE, USER_MAX_AGE, 
-    USERS_COVER_PHOTOS_UPLOAD_DIR, 
-    USERS_PROFILE_PICTURES_UPLOAD_DIR,
-    USERNAME_CHANGE_WAIT_PERIOD, 
+    USER_MIN_AGE, USER_MAX_AGE, USERS_COVER_PHOTOS_UPLOAD_DIR, 
+    USERS_PROFILE_PICTURES_UPLOAD_DIR, USERNAME_CHANGE_WAIT_PERIOD, 
     NON_PREMIUM_USER_MAX_DOWNLOADS_PER_MONTH,
 )
 from accounts.managers import UserManager
@@ -167,7 +163,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     num_parent_artist_post_comments = models.PositiveIntegerField(default=0)
     num_parent_non_artist_post_comments = models.PositiveIntegerField(default=0)
 
-    # EMAIL_FIELD needs to be set for graphql...
+    # EMAIL_FIELD needs to be set for graphql-auth
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'username'
     # USERNAME_FIELD and password are required by default
@@ -296,8 +292,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
 
     def save(self, *args, **kwargs):
         # Title case display_name
-        if not self.pk:
-            self.display_name = self.display_name.title()
+        self.display_name = self.display_name.title()
 
         # See https://stackoverflow.com/q/4441539/
         # why-doesnt-djangos-model-save-call-full-clean/

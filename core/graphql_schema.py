@@ -1,37 +1,40 @@
 import graphene
-from graphql_auth.schema import UserQuery, MeQuery
 from graphene_django.debug import DjangoDebug
+from graphql_auth.schema import UserQuery, MeQuery
 
 from accounts.graphql_schema.artists import (
-    CreateArtistMutation, ArtistQuery,
+    CreateArtistMutation, PatchArtistMutation, ArtistQuery,
+    DeleteArtistMutation, FilterUpdateArtistMutation,
 )
 from accounts.graphql_schema.users import (
-    AuthRelayMutation
+    AuthRelayMutation, PatchUserMutation, 
+    ChangeUsernameMutation, 
 )
 from posts.graphql_schema.non_artist_posts import (
     NonArtistPostQuery, 
 )
 
 
-# This class will inherit from multiple Queries from the different apps
+# All Query objects will be inserted here
 class Query(UserQuery, MeQuery, NonArtistPostQuery, ArtistQuery, graphene.ObjectType):
     pass
 
 
-# All Mutation objects will be placed here
+# All Mutation objects will be inserted here
 class Mutation(AuthRelayMutation, graphene.ObjectType):
-    # Artist mutations
     debug = graphene.Field(DjangoDebug, name='__debug')
+
+    ## Extra user mutations
+    patch_user = PatchUserMutation.Field()
+    change_username = ChangeUsernameMutation.Field()
+
+    ## Artist mutations
     create_artist = CreateArtistMutation.Field()
-    # artist_delete = ArtistSerializerMutation.DeleteField()
-    # artist_update = ArtistSerializerMutation.UpdateField()
-    # artist_create = ArtistCreateMutation.Field()
-    # # artist_update = ArtistUpdateMutation.Field()
-    # artist_delete = ArtistDeleteMutation.Field()
-    # artist_bulk_create = ArtistBulkCreateMutation.Field()
-    # artist_bulk_update = ArtistBulkUpdateMutation.Field()
-    # artist_bulk_delete = ArtistBulkDeleteMutation.Field()
-   
+    patch_artist = PatchArtistMutation.Field()
+    delete_artist = DeleteArtistMutation.Field()
+    filter_update_artist = FilterUpdateArtistMutation.Field()
+
+
 
 schema = graphene.Schema(
     query=Query, 

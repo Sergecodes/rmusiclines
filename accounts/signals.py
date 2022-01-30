@@ -22,8 +22,7 @@ def parse_email(sender, instance, **kwargs):
 @receiver(pre_save, sender=User)
 def check_username_change(sender, instance, **kwargs):
     """
-    Verify if user is about to change his username 
-    and if he has the permission to do it.
+    Verify if user is about to change his username and if he is permitted to do it.
     """
     # Note that update_fields will always be in kwargs since it is a part of the 
     # function parameters, but it will be None(it won't be an empty list )

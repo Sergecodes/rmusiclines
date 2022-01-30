@@ -4,13 +4,13 @@ import graphene
 
 from django.contrib.contenttypes.models import ContentType
 # from django_countries import countries
-# from graphene import List, String
+from graphene import List, String
 # from django.utils.module_loading import import_string
-# from graphene_django.converter import (
-#     convert_choices_to_named_enum_with_descriptions, 
-#     convert_django_field
-# )
-# from taggit.managers import TaggableManager
+from graphene_django.converter import (
+    convert_choices_to_named_enum_with_descriptions, 
+    convert_django_field
+)
+from taggit.managers import TaggableManager
 
 # from core.constants import GENDERS
 
@@ -36,20 +36,20 @@ class PKMixin:
     pk = graphene.Field(type=graphene.Int, source='pk')
 
 
-# class GrapheneRenderTaggitTags:
-#     """
-#     Use this mixin to enable graphene-django correctly render django-taggit 
-#     tags (as a list of strings).
-#     The corresponding model of the graphene type using this mixin should have a property
-#     `get_tags` that returns the tags of the model (eg obj.tags.all())
-#     """
+class GrapheneRenderTaggitTags:
+    """
+    Use this mixin to enable graphene-django correctly render django-taggit 
+    tags (as a list of strings).
+    The corresponding model of the graphene type using this mixin should have a property
+    `get_tags` that returns the tags of the model (eg obj.tags.all())
+    """
 
-#     # Make django-taggit's TaggableManager interpretable to graphene
-#     @convert_django_field.register(TaggableManager)
-#     def convert_field_to_string(field, registry=None):
-#         print(field)
-#         print("helloooo")
-#         return List(String, source='get_tags')
+    # Make django-taggit's TaggableManager interpretable to graphene
+    @convert_django_field.register(TaggableManager)
+    def convert_field_to_string(field, registry=None):
+        print(field)
+        print("in graphene render tags")
+        return List(String, source='get_tags')
 
 
 # Problem: The country field is a choices field; graphene parses it into an Enum.
