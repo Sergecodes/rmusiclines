@@ -1,14 +1,18 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.utils.translation import gettext_lazy as _
 from graphql_auth.forms import UpdateAccountForm
 
 User = get_user_model()
 
 
-class ChangeUsernameForm(forms.ModelForm):
-    class Meta:
-        model = User
-        fields = ('username', )
+class ChangeEmailForm(forms.Form):
+    """Form used to change a user's email"""
+    new_email = forms.EmailField(
+        label=_('New email'),
+        max_length=50,
+        help_text=_('We will send a verification code to this email'),
+    )
 
 
 class UpdateUserForm(UpdateAccountForm):

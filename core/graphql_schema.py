@@ -8,7 +8,8 @@ from accounts.graphql_schema.artists import (
 )
 from accounts.graphql_schema.users import (
     AuthRelayMutation, PatchUserMutation, 
-    ChangeUsernameMutation, 
+    ChangeUsernameMutation, ChangeEmailMutation,
+    VerifyNewEmailMutation
 )
 from posts.graphql_schema.non_artist_posts import (
     NonArtistPostQuery, 
@@ -27,6 +28,8 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     ## Extra user mutations
     patch_user = PatchUserMutation.Field()
     change_username = ChangeUsernameMutation.Field()
+    change_email = ChangeEmailMutation.Field()
+    verify_new_email = VerifyNewEmailMutation.Field()
 
     ## Artist mutations
     create_artist = CreateArtistMutation.Field()

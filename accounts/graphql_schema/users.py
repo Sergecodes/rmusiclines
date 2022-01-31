@@ -6,8 +6,10 @@ from graphene_django import DjangoObjectType
 from graphene_django_cud.mutations import DjangoPatchMutation
 from graphql import GraphQLError
 from graphql_auth import relay
+from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin
 from graphql_jwt.decorators import login_required
 
+from accounts.mixins import SendNewEmailActivationMixin, VerifyNewEmailMixin
 from accounts.validators import UserUsernameValidator
 from core.utils import PKMixin
 # from posts.graphql_schema.artist_posts import ArtistPostType
@@ -35,28 +37,29 @@ class PatchUserMutation(DjangoPatchMutation):
 
     @classmethod
     def check_permissions(cls, root, info, input, id, obj: User):
-        # Only current user can update their account
+        # Only current logged in user can update their account
 
         # The id used should be the pk not the global relay id
-        # if not isinstance(id, int):
-        #     raise GraphQLError(
-        #         _("Use the primary key of the user which is an integer; relay ids are not supported"),
-        #         extensions={'code': "invalid"}
-        #     ) 
+        if not isinstance(id, int):
+            raise GraphQLError(
+                _("Use the primary key of the user which is an integer; relay ids are not supported"),
+                extensions={'code': 'invalid'}
+            ) 
 
-        # Only logged in user is permitted to update their account
+        print(info.context.user, info.context.user.pk)
+        print(obj, obj.pk)
         if info.context.user.pk == obj.pk:
             return 
         else:
             raise GraphQLError(
-                _("You can only update your account"),
-                extensions={
-                    'code': "not_owner"
-                }
+                _("You can not modify another user's account"),
+                extensions={'code': 'not_owner'}
             )
 
 
 class ChangeUsernameMutation(graphene.Mutation):
+    """Change username of current logged in user(if they are permitted to change it"""
+
     class Arguments:
         new_username = graphene.String()
 
@@ -82,6 +85,22 @@ class ChangeUsernameMutation(graphene.Mutation):
         return ChangeUsernameMutation(user=user, success=True)
 
 
+class ChangeEmailMutation(
+    RelayMutationMixin, DynamicInputMixin, 
+    SendNewEmailActivationMixin, graphene.ClientIDMutation
+):
+    __doc__ = SendNewEmailActivationMixin.__doc__
+    _required_inputs = ['new_email', 'password']
+
+
+class VerifyNewEmailMutation(
+    RelayMutationMixin, DynamicInputMixin, 
+    VerifyNewEmailMixin, graphene.ClientIDMutation
+):
+    __doc__ = VerifyNewEmailMixin.__doc__
+    _required_inputs = ["token"]
+
+
 class AuthRelayMutation(graphene.ObjectType):
     register = relay.Register.Field()
     verify_account = relay.VerifyAccount.Field()
@@ -90,9 +109,8 @@ class AuthRelayMutation(graphene.ObjectType):
     password_reset = relay.PasswordReset.Field()
     password_set = relay.PasswordSet.Field() # For passwordless registration
     password_change = relay.PasswordChange.Field()
-    # update_account = UpdateAccount.Field()
-    # archive_account = relay.ArchiveAccount.Field()
     delete_account = relay.DeleteAccount.Field()
+    # archive_account = relay.ArchiveAccount.Field()
     # send_secondary_email_activation =  relay.SendSecondaryEmailActivation.Field()
     # verify_secondary_email = relay.VerifySecondaryEmail.Field()
     # swap_emails = relay.SwapEmails.Field()

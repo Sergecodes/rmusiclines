@@ -56,7 +56,6 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     email = models.EmailField(
         _('Email address'),
         max_length=50,
-        unique=True,
         help_text=_('We will send a verification code to this email'),
         error_messages={
             'unique': _('A user with that email already exists.'),
@@ -310,9 +309,17 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         constraints = [
             models.UniqueConstraint(
                 fields=['username'],
-                name='unique_username',
-                include=['display_name']
+                include=['display_name'],
+                name='unique_username'
             ),
+            models.UniqueConstraint(
+                fields=['email'],
+                # Apply unique constraint on email only when the user is active.
+                # This prevents someone from for instance creating accounts with people's
+                # email adresses.
+                condition=Q(is_active=True),
+                name='unique_active_email'
+            )
             ## Check constraint on table:
             # ALTER TABLE accounts.artist ADD CONSTRAINT "age_gte_13_and_lte_120" CHECK (
             # 	birth_date <= (now()::date - '15 years'::interval) AND 

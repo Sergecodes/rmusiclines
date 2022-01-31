@@ -1,13 +1,8 @@
 
 # TODO
-- test changeUsername mutation
-- create "change email address mutation" (use ResendActivationEmail...)
-(what if a user registers with someone's email, but does not confirm the email.
-Can the rightful owner of the email register using the email; or an `email already exists`
-error is raises ?? TEST THIS !)
-- create other models mutations
 - enable pfp and cover photo upload for user profile
-- setup social authentication (use firebase and django graphql social auth...)
+- create other models mutations
+- setup social authentication (django graphql social auth...)
 
 
 
@@ -22,7 +17,7 @@ error is raises ?? TEST THIS !)
 - ratings for posts are now 1, 3 or 5 stars
 - remove music_title field.
 - user can change username but after changing username, they have to wait until
-after 15 days before they can change this. 
+after 15 days before they can change it again. 
 - possibility for poster of post to pin comment(parent) under post.
 
 
@@ -32,6 +27,7 @@ after 15 days before they can change this.
 - constraints on database fields(birth_date, num_stars, ) and field types 
 (this can be done on a table : field | type | constraints | extra(or misc)
 - ArtistFollow table
+- unique email if user is active
 
 
 # other proposals
