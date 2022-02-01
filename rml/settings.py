@@ -248,6 +248,17 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
 
+# Caching TODO use memcached in production!! (even before production!)
+# (it is the best cache backend that django supports)
+CACHES = {
+	'default': {
+		'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+		'TIMEOUT': 300,  # The default(300s = 5mins)
+		# 'TIMEOUT': 60 * 60 * 24,  # 86400(s)=24h
+	}
+}
+
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 if USE_S3:
@@ -386,7 +397,7 @@ THUMBNAIL_SUBDIR = 'thumbs'
 
 ## graphene_django ##
 GRAPHENE = {
-    'SCHEMA': 'core.graphql_schema.schema',
+    'SCHEMA': 'core.graphql.schema.schema',
 	'ATOMIC_MUTATION': True,
 	'MIDDLEWARE': [
         'graphql_jwt.middleware.JSONWebTokenMiddleware',

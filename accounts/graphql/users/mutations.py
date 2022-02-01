@@ -1,27 +1,21 @@
 import graphene
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, logout
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
-from graphene_django import DjangoObjectType
 from graphene_django_cud.mutations import DjangoPatchMutation
 from graphql import GraphQLError
 from graphql_auth import relay
-from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin
-from graphql_jwt.decorators import login_required
+from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
+from graphql_auth.schema import UserNode
 
 from accounts.mixins import SendNewEmailActivationMixin, VerifyNewEmailMixin
 from accounts.validators import UserUsernameValidator
-from core.utils import PKMixin
-# from posts.graphql_schema.artist_posts import ArtistPostType
-# from posts.graphql_schema.non_artist_posts import NonArtistPostNode
+from core.decorators import verification_and_login_required
+# Though it seems like this isn't used here, graphene implicitly uses it 
+# to register this type(User model) thus it should stay imported
+from .types import UserType
 
 User = get_user_model()
-
-
-# Register the User model type else an arror will be raised
-class UserType(PKMixin, DjangoObjectType):
-    class Meta:
-        model = User
 
 
 class PatchUserMutation(DjangoPatchMutation):
@@ -57,18 +51,24 @@ class PatchUserMutation(DjangoPatchMutation):
             )
 
 
-class ChangeUsernameMutation(graphene.Mutation):
-    """Change username of current logged in user(if they are permitted to change it"""
+class ChangeUsernameMutation(graphene.Mutation, Output):
+    """Change username of current logged in user(if they are permitted to change it)"""
 
     class Arguments:
         new_username = graphene.String()
 
-    success = graphene.Boolean()
-    user = graphene.Field(UserType)
+    # The inherited class Output contains other appropriate return fields (success & errors)
+    user = graphene.Field(UserNode)
 
+    # The verification_required decorator from graphql_auth doesnt work here apparently,
+    # so use custom permission verifier via user_passes_test.
+    # Also, We use user_passes_test intead of login_required in the verify authenticated 
+    # decorator to be able to provide a custom error message
     @classmethod
-    @login_required
+    @verification_and_login_required
     def mutate(cls, root, info, new_username):
+        print(cls)
+        print(root)
         # Validate username
         UserUsernameValidator()(new_username)
         
@@ -76,9 +76,11 @@ class ChangeUsernameMutation(graphene.Mutation):
 
         try:
             user.change_username(new_username)
+            # Note that user now has another username, so we should probably log them out
+            logout(info.context)
         except ValidationError as err:
             raise GraphQLError(
-                err.message % err.params,
+                err.message % (err.params or {}),
                 extensions={'code': err.code}
             )
 
@@ -122,88 +124,4 @@ class AuthRelayMutation(graphene.ObjectType):
     refresh_token = relay.RefreshToken.Field()
     revoke_token = relay.RevokeToken.Field()
 
-
-'''
-class UserType(DjangoObjectType):
-    is_suspended = graphene.Boolean(source='is_suspended')
-    can_download = graphene.Boolean(source='can_download')
-    can_change_username = graphene.Boolean(source='can_change_username')
-    can_change_username_until_date = graphene.Boolean(
-        source='can_change_username_until_date'
-    )
-    # private_artist_posts = graphene.List(source='private_artist_posts')
-    private_non_artist_posts = graphene.List(NonArtistPostNode, source='private_non_artist_posts')
-    # public_artist_posts
-    public_non_artist_posts = graphene.List(NonArtistPostNode, source='public_non_artist_posts')
-    # parent_artist_post_comments = 
-    # parent_non_artist_post_comments
-
-    class Meta:
-        model = User
-        exclude = [
-            'profile_picture_width', 'profile_picture_height', 
-            'cover_photo_width', 'cover_photo_height', 
-        ]
-
-
-class UserQuery(graphene.ObjectType):
-    all_users = graphene.List(UserType)
-    user_by_username = graphene.Field(
-        UserType, 
-        username=graphene.String(required=True)
-    )
-
-    def resolve_all_users(root, info):
-        return User.objects.select_related(
-            'pinned_non_artist_post',
-            'pinned_artist_post'
-        ).all()
-
-    def resolve_user_by_username(root, info, username):
-        try:
-            return User.objects.get(username=username)
-        except User.DoesNotExist:
-            return None
-
-'''
-
-
-
-
-'''
-from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
-from graphql_auth.decorators import verification_required
-from graphql_auth.settings import graphql_auth_settings
-
-from accounts.forms.users import UpdateUserForm
-
-
-class UpdateAccountMixin(Output):
-    """
-    Update user model fields, defined on settings.
-
-    User must be verified.
-    """
-    form = UpdateUserForm
-
-    @classmethod
-    @verification_required
-    def resolve_mutation(cls, root, info, **kwargs):
-        user = info.context.user
-        f = cls.form(kwargs, instance=user)
-
-        if f.is_valid():
-            f.save()
-            return cls(success=True)
-        else:
-            return cls(success=False, errors=f.errors.get_json_data())
-
-
-class UpdateAccount(
-    RelayMutationMixin, DynamicInputMixin, 
-    UpdateAccountMixin, graphene.ClientIDMutation
-):
-    __doc__ = UpdateAccountMixin.__doc__
-    _inputs = graphql_auth_settings.UPDATE_MUTATION_FIELDS
-'''
 

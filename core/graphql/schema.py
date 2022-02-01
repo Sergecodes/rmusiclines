@@ -2,28 +2,33 @@ import graphene
 from graphene_django.debug import DjangoDebug
 from graphql_auth.schema import UserQuery, MeQuery
 
-from accounts.graphql_schema.artists import (
-    CreateArtistMutation, PatchArtistMutation, ArtistQuery,
+from accounts.graphql.artists.mutations import (
+    CreateArtistMutation, PatchArtistMutation,
     DeleteArtistMutation, FilterUpdateArtistMutation,
 )
-from accounts.graphql_schema.users import (
+from accounts.graphql.artists.queries import ArtistQuery
+from accounts.graphql.users.mutations import (
     AuthRelayMutation, PatchUserMutation, 
     ChangeUsernameMutation, ChangeEmailMutation,
     VerifyNewEmailMutation
 )
-from posts.graphql_schema.non_artist_posts import (
+from posts.graphql.non_artist_posts.queries import (
     NonArtistPostQuery, 
 )
+from .mutations import UploadMutation
 
 
-# All Query objects will be inserted here
+# All Queries will be inherited here
 class Query(UserQuery, MeQuery, NonArtistPostQuery, ArtistQuery, graphene.ObjectType):
     pass
 
 
-# All Mutation objects will be inserted here
+# All Mutations will be inherited here
 class Mutation(AuthRelayMutation, graphene.ObjectType):
     debug = graphene.Field(DjangoDebug, name='__debug')
+
+    ## Core mutations
+    upload_file = UploadMutation.Field()
 
     ## Extra user mutations
     patch_user = PatchUserMutation.Field()
@@ -42,6 +47,7 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
 schema = graphene.Schema(
     query=Query, 
     mutation=Mutation, 
-    # types=[ArtistTagType]
+    # types=[]
 )
+
 

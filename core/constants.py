@@ -15,9 +15,16 @@ FILE_STORAGE_CLASS = import_string(settings.DEFAULT_FILE_STORAGE)
 
 
 ## SESSION KEYS FORMAT
-# `user-{foo}-new-email` which will point to the value of the user with username 'foo' 's new email.
+
+
+## CACHE KEYS FORMAT
+# `{username}-new-email` which will point to the value of the user (username)'s new email.
 # This is set when changing the user's email in the user's ChangeEmailMutation
+# (SendNewEmailActivationMixin).
 # Notice we use hyphens(instead of possibly underscores) coz underscores are valid characters
-# in a username.
+# in a username.  ** Sessions are not used to store new email because the user may use 
+# an email that is in a different phone, or basically they may use another browser 
+# to open the new email activation link, thus the session will be different. So store the email in 
+# cache.
 #
 #

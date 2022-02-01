@@ -29,6 +29,10 @@ class UserOperations:
 		self.is_active = False
 		self.save(update_fields=['is_active', 'deactivated_on'])
 
+		# Update graphql_auth status
+		self.status.verified = False
+		self.status.save(update_fields=['verified'])
+
 	def change_username(self, new_username: str):
 		"""
 		Change a user's username. This method should be used to modify
@@ -45,6 +49,12 @@ class UserOperations:
 					'can_change_date': str(self.can_change_username_until_date),
 					'wait_period': USERNAME_CHANGE_WAIT_PERIOD
 				}
+			)
+
+		if self.username == new_username:
+			raise ValidationError(
+				_("This is your current username"),
+				code="same_username"
 			)
 
 		self.username = new_username
@@ -233,6 +243,7 @@ class SuspensionOperations:
 				code='ongoing_suspension'
 			)
 			
+		# Mark suspension as no longer active
 		self.is_active = False
 		self.save(update_fields=['is_active'])
 

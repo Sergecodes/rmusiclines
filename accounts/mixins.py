@@ -1,4 +1,6 @@
+from datetime import timedelta
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.signing import SignatureExpired, BadSignature
 from django.utils.translation import gettext as _
 from django.utils.module_loading import import_string
@@ -14,6 +16,7 @@ from smtplib import SMTPException
 from accounts.forms.users import ChangeEmailForm
 
 User = get_user_model()
+EXPIRATION_ACTIVATION_TOKEN = timedelta(days=3)
 
 if graphql_auth_settings.EMAIL_ASYNC_TASK and \
     isinstance(graphql_auth_settings.EMAIL_ASYNC_TASK, str):
@@ -64,9 +67,10 @@ class SendNewEmailActivationMixin(Output):
             else:
                 current_user.status.send_activation_email(info)
 
-            # Add new email info to session
-            session = info.context.session
-            session[f'user-{current_user.username}-new-email'] = new_email
+            # Add new email info to cache and set expiry date to activation token's expiry date
+            # (don't use session so user can access the link via another browser for instance)
+            cache_key = f'{current_user.username}-new-email'
+            cache.set(cache_key, new_email, int(EXPIRATION_ACTIVATION_TOKEN.total_seconds()))
             return cls(success=True)  
 
         except SMTPException:
@@ -85,9 +89,11 @@ class VerifyNewEmailMixin(Output):
     def _verify(cls, token)-> User:
         # This payload is of the form:
         # {'username': users_username, 'action': TokenAction_to_perform}
-        payload = get_token_paylod(
-            token, TokenAction.ACTIVATION, graphql_auth_settings.EXPIRATION_ACTIVATION_TOKEN
-        )
+        #
+        # Default expiration is 7days(graphql_auth_settings.EXPIRATION_ACTIVATION_TOKEN). 
+        # Let's use 3 days instead since it's a new email 
+        # and user already has a valid email on the site...
+        payload = get_token_paylod(token, TokenAction.ACTIVATION, EXPIRATION_ACTIVATION_TOKEN)
         user = User.objects.get(**payload)
 
         # Well let's just stick to the way graphql_auth does it by using the UserStatus
@@ -108,11 +114,18 @@ class VerifyNewEmailMixin(Output):
             token = kwargs.get("token")
             user = cls._verify(token)
 
-            # No errors raised so we can safely get email from session and update user info
-            session = info.context.session
-            user_key = f'user-{info.context.user.username}-new-email'
-            user.email = session.pop(user_key)
+            # No errors raised so we can safely get email from cache and update user info
+            cache_key = f'{info.context.user.username}-new-email'
+            new_email = cache.get(cache_key)
+
+            # new_email will be None if key isn't in cache
+            # (perhaps key has expired or already deleted)
+            if not new_email:
+                raise KeyError
+
+            user.email = new_email
             user.save(update_fields=['email'])
+            cache.delete(cache_key)
             return cls(success=True)
         except UserNotVerified:
             return cls(success=False, errors=Messages.NOT_VERIFIED)

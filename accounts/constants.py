@@ -1,7 +1,7 @@
 import datetime
 
 
-## Change constraint on database if any of these values is changed.
+## TODO Change constraint on database if any of these values is changed.
 # ref. COPPA(Children's Online Privacy Protection Rule) RULES
 USER_MIN_AGE = 13
 # Oldest person alive in 2021 is 118 yrs old !

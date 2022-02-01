@@ -3,7 +3,7 @@
 - enable pfp and cover photo upload for user profile
 - create other models mutations
 - setup social authentication (django graphql social auth...)
-
+- setup memcached for storing sessions and for general caching !! (performance reasons)
 
 
 # add to site specification:
