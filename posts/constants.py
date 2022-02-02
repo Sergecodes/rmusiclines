@@ -10,6 +10,8 @@ POST_CAN_EDIT_TIME_LIMIT = timedelta(minutes=3)
 
 # Maximum number of characters of a post
 MAX_POST_LENGTH = 350
+# Maximum number of photos per post
+MAX_NUM_PHOTOS = 4
 
 
 # Media upload directories

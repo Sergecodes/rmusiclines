@@ -23,11 +23,6 @@ class UsesCustomSignal:
     pass
 
 
-def get_content_type(model_obj):
-    """Return the content type of a given model"""
-    return ContentType.objects.get_for_model(model_obj)
-
-
 class PKMixin:
     """
     Use with a graphene ObjectType to include pk of the model in fields
@@ -50,6 +45,15 @@ class GrapheneRenderTaggitTags:
         print(field)
         print("in graphene render tags")
         return List(String, source='get_tags')
+
+
+def get_content_type(model_obj):
+    """Return the content type of a given model"""
+    return ContentType.objects.get_for_model(model_obj)
+
+
+
+
 
 
 # Problem: The country field is a choices field; graphene parses it into an Enum.

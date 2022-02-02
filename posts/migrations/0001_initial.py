@@ -122,7 +122,7 @@ class Migration(migrations.Migration):
             name='ArtistPostPhoto',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('photo', easy_thumbnails.fields.ThumbnailerImageField(height_field='photo_height', upload_to='artist_posts_photos/', validators=[django.core.validators.FileExtensionValidator(['png, jpg, gif']), posts.validators.validate_post_photo], width_field='photo_width')),
+                ('photo', easy_thumbnails.fields.ThumbnailerImageField(height_field='photo_height', upload_to='artist_posts_photos/', validators=[django.core.validators.FileExtensionValidator(['png, jpg, gif']), posts.validators.validate_post_photo_file], width_field='photo_width')),
                 ('photo_width', models.PositiveIntegerField()),
                 ('photo_height', models.PositiveIntegerField()),
             ],
@@ -159,7 +159,7 @@ class Migration(migrations.Migration):
             name='ArtistPostVideo',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('video', core.fields.DynamicStorageFileField(blank=True, upload_to='artist_posts_videos/', validators=[django.core.validators.FileExtensionValidator(['mp4', 'mov']), posts.validators.validate_post_video])),
+                ('video', core.fields.DynamicStorageFileField(blank=True, upload_to='artist_posts_videos/', validators=[django.core.validators.FileExtensionValidator(['mp4', 'mov']), posts.validators.validate_post_video_file])),
             ],
             options={
                 'db_table': 'posts"."artist_post_video',
@@ -279,7 +279,7 @@ class Migration(migrations.Migration):
             name='NonArtistPostPhoto',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('photo', easy_thumbnails.fields.ThumbnailerImageField(height_field='photo_height', upload_to='non_artist_posts_photos/', validators=[django.core.validators.FileExtensionValidator(['png, jpg, gif']), posts.validators.validate_post_photo], width_field='photo_width')),
+                ('photo', easy_thumbnails.fields.ThumbnailerImageField(height_field='photo_height', upload_to='non_artist_posts_photos/', validators=[django.core.validators.FileExtensionValidator(['png, jpg, gif']), posts.validators.validate_post_photo_file], width_field='photo_width')),
                 ('photo_width', models.PositiveIntegerField()),
                 ('photo_height', models.PositiveIntegerField()),
             ],
@@ -316,7 +316,7 @@ class Migration(migrations.Migration):
             name='NonArtistPostVideo',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('video', core.fields.DynamicStorageFileField(blank=True, upload_to='artist_posts_videos/', validators=[django.core.validators.FileExtensionValidator(['mp4', 'mov']), posts.validators.validate_post_video])),
+                ('video', core.fields.DynamicStorageFileField(blank=True, upload_to='artist_posts_videos/', validators=[django.core.validators.FileExtensionValidator(['mp4', 'mov']), posts.validators.validate_post_video_file])),
             ],
             options={
                 'db_table': 'posts"."non_artist_post_video',

@@ -17,29 +17,31 @@ File sizes:
 '''
 
 
-def validate_post_photo(post_photo):
+def validate_post_photo_file(photo_file):
     """
-    Validate video file
+    Validate photo file
     - Max size: 5mb
     - Types: png, jpg, gif
 
-    :param `post_photo`: ArtistPostPhoto | NonArtistPostPhoto object
+    :param `photo_file`: File object
     """
     # TODO Also validate photo on server level(nginx, ...) before sending to django
 
     MAX_PHOTO_SIZE = 5242880
     VALID_CONTENT_TYPES = ['image/png', 'image/jpg', 'image/gif']
-
-    file = post_photo.photo
+    file = photo_file
 
     try:
         content_type = file.content_type
         if content_type in VALID_CONTENT_TYPES:
             if (file_size := file.size) > MAX_PHOTO_SIZE:
                 raise ValidationError(
-                    _('Please keep filesize under %s. Current filesize %s') % 
-                    (filesizeformat(MAX_PHOTO_SIZE), filesizeformat(file_size)),
-                    code='large_file'
+                    _('Please keep filesize under %(max_photo_size)s. Current filesize %(photo_size)s'),
+                    code='large_file',
+                    params={
+                        'max_photo_size': filesizeformat(MAX_PHOTO_SIZE),
+                        'photo_size': filesizeformat(file_size)
+                    }
                 )
         else:
             raise ValidationError(
@@ -50,7 +52,7 @@ def validate_post_photo(post_photo):
         pass
 
 
-def validate_post_video(post_video):
+def validate_post_video_file(video_file):
     """
     Validate video file
     - Max size: 250mb
@@ -59,22 +61,25 @@ def validate_post_video(post_video):
     - Max resolution: 1920 x 1920 px
     - Types: mp4, mov
 
-    :param `post_video`: ArtistPostVideo | NonArtistPostVideo object
+    :param `video_file`: File object
     """
 
     MAX_VIDEO_SIZE, MAX_DURATION = 214958080, 360
     MIN_RESOLUTION, MAX_RESOLUTION = (32, 32), (1920, 1920)
     VALID_CONTENT_TYPES = ['video/mp4', 'video/mov']
-    video = post_video.video
+    video = video_file
     
     try:
         content_type = video.content_type
         if content_type in VALID_CONTENT_TYPES:
             if (file_size := video.size) > MAX_VIDEO_SIZE:
                 raise ValidationError(
-                    _('Please keep filesize under %s. Current filesize %s') % 
-                    (filesizeformat(MAX_VIDEO_SIZE), filesizeformat(file_size)),
-                    code='large_file'
+                    _('Please keep filesize under %(max_video_size)s. Current filesize %(video_size)s'),
+                    code='large_file',
+                    params={
+                        'max_video_size': filesizeformat(MAX_VIDEO_SIZE),
+                        'video_size': filesizeformat(file_size)
+                    }
                 )
         else:
             raise ValidationError(
@@ -88,18 +93,36 @@ def validate_post_video(post_video):
     duration, video_time = get_video_duration(video)
     if duration > MAX_DURATION:
         raise ValidationError(
-            _('Please keep duration under %s. Current duration %s and video time %s') % 
-            (MAX_DURATION, duration, video_time),
-            code='invalid'
+            _('Please keep duration under %(max_duration)s. Current duration %(duration)s and video time %(time)s'),
+            code='invalid',
+            params={
+                'max_duration': MAX_DURATION,
+                'duration': duration,
+                'time': video_time
+            }
         )
 
     # Validate resolution
     resolution = get_video_resolution(video)
     if resolution < MIN_RESOLUTION or resolution > MAX_RESOLUTION:
         raise ValidationError(
-            _('Please keep resolution between %s and %s. Current resolution %s') % 
-            (str(MIN_RESOLUTION), str(MAX_RESOLUTION), str(resolution)),
-            code='invalid'
+            _('Please keep resolution between %(min_resolution)s and %(max_resolution)s. Current resolution %(resolution)s'),
+            code='invalid',
+            params={
+                'min_resolution': MIN_RESOLUTION,
+                'max_resolution': MAX_RESOLUTION,
+                'resolution': resolution
+            }
         )
+
+
+# def validate_post_photo(post_photo):
+#     """Validate post photo instance"""
+#     validate_post_photo_file(post_photo.file)
+
+
+# def validate_post_video(post_video):
+#     """Validate post video instance"""
+#     validate_post_video_file(post_video.file)
 
 

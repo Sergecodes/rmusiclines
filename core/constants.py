@@ -1,8 +1,18 @@
 """Project-wide constants"""
 
 from django.conf import settings
+from django.db import models
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
+
+
+class ImageFormEnum(models.TextChoices):
+    """Enum for image form choices"""
+    ARTIST_PHOTO = 'artist_photo', _('Artist photo')
+    ARTIST_POST_PHOTO = 'artist_post_photo', _('Artist post photo')
+    NON_ARTIST_POST_PHOTO = 'non_artist_post_photo', _('Non artist post photo')
+    PROFILE_PICTURE = 'profile_picture', _('Profile picture')
+    COVER_PHOTO = 'cover_photo', _('Cover photo')
 
 
 GENDERS = (
@@ -12,6 +22,7 @@ GENDERS = (
 )
 
 FILE_STORAGE_CLASS = import_string(settings.DEFAULT_FILE_STORAGE)
+
 
 
 ## SESSION KEYS FORMAT
@@ -27,4 +38,8 @@ FILE_STORAGE_CLASS = import_string(settings.DEFAULT_FILE_STORAGE)
 # to open the new email activation link, thus the session will be different. So store the email in 
 # cache.
 #
+#
+# `{user.username}-unposted-photos` which is a list containing a dict with keys filename, base64_str,
+# mimetype. This list is a list of photos that have been uploaded but not yet posted under a post. 
+# 
 #

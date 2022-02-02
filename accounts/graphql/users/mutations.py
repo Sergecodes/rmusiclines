@@ -67,13 +67,11 @@ class ChangeUsernameMutation(graphene.Mutation, Output):
     @classmethod
     @verification_and_login_required
     def mutate(cls, root, info, new_username):
-        print(cls)
-        print(root)
         # Validate username
         UserUsernameValidator()(new_username)
-        
-        user = info.context.user
 
+        user = info.context.user
+        
         try:
             user.change_username(new_username)
             # Note that user now has another username, so we should probably log them out

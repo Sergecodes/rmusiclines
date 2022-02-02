@@ -17,12 +17,11 @@ from posts.constants import (
 	ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
 	ARTIST_POSTS_VIDEOS_UPLOAD_DIR
 )
-from posts.validators import validate_post_photo, validate_post_video
+from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import ArtistPostOperations
 from ..common.models import (
-    Post, PostHashtag, 
-    PostRating, PostRepost,
-    Comment, CommentLike
+    Post, PostHashtag, PostRating, 
+	PostRepost, Comment, CommentLike
 )
 
 
@@ -159,7 +158,7 @@ class ArtistPostPhoto(models.Model):
 		resize_source=dict(size=(1000, 1000), sharpen=True),
 		validators=[
 			FileExtensionValidator(['png, jpg, gif']), 
-			validate_post_photo
+			validate_post_photo_file
 		],
 		width_field='photo_width', 
 		height_field='photo_height'
@@ -187,7 +186,7 @@ class ArtistPostVideo(models.Model):
 		upload_to=ARTIST_POSTS_VIDEOS_UPLOAD_DIR, 
 		validators=[
 			FileExtensionValidator(['mp4', 'mov']), 
-			validate_post_video
+			validate_post_video_file
 		],
 		blank=True
 	)
