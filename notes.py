@@ -5,6 +5,7 @@ store them in database(post's photos) after the post has been validated)
 - enable pfp and cover photo upload for user profile
 (appropriate size validators for pfp & cover photo, use params in post.validators file)
 - setup social authentication (django graphql social auth...)
+- test image upload via AWS
 - setup memcached for storing sessions and for general caching !! (performance reasons)
 - save post content/images in cache if user doesn't post it.
 # how to optimize/compress base64 strings...

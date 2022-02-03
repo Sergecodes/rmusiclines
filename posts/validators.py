@@ -28,7 +28,7 @@ def validate_post_photo_file(photo_file):
     # TODO Also validate photo on server level(nginx, ...) before sending to django
 
     MAX_PHOTO_SIZE = 5242880
-    VALID_CONTENT_TYPES = ['image/png', 'image/jpg', 'image/gif']
+    VALID_CONTENT_TYPES = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif']
     file = photo_file
 
     try:

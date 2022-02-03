@@ -383,7 +383,7 @@ THUMBNAIL_ALIASES = {
 	# width and height are required for size
 	'': {
 		'thumb': {'size': (2000, 500), 'sharpen': True, },
-		'sm_thumb': {'size': (1300, 300), 'sharpen': True, },
+		'sm_thumb': {'size': (1000, 350), 'sharpen': True, },
 
 	}
 }

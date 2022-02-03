@@ -2,17 +2,23 @@
 
 import base64
 import graphene
+import os
 import uuid
+from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.utils.translation import gettext_lazy as _
+from easy_thumbnails.files import get_thumbnailer
+from easy_thumbnails.templatetags.thumbnail import thumbnail_url
 from graphene_file_upload.scalars import Upload
 from graphql import GraphQLError
+from io import BytesIO
+from PIL import Image
 
 from core.constants import FILE_STORAGE_CLASS, ImageFormEnum as FormForEnum
 from core.decorators import verification_and_login_required
-from core.graphql.types import ImageFormEnum, Base64
+from core.graphql.types import ImageFormEnum
 from core.forms import ArtistPhotoForm
 from posts.constants import (
     MAX_NUM_PHOTOS, ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
@@ -25,8 +31,8 @@ STORAGE = FILE_STORAGE_CLASS()
 FORM_AND_UPLOAD_DIR = {
     FormForEnum.ARTIST_POST_PHOTO.value: ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
     FormForEnum.NON_ARTIST_POST_PHOTO.value: NON_ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-
 }
+THUMBNAIL_ALIASES = settings.THUMBNAIL_ALIASES
 
 
 class SingleImageUploadMutation(graphene.Mutation):
@@ -38,7 +44,7 @@ class SingleImageUploadMutation(graphene.Mutation):
 
     success = graphene.Boolean(default_value=True)
     filename = graphene.String()
-    base64_str = Base64()
+    base64_str = graphene.String()
     mimetype = graphene.String()
      
     # Apparently this should be an instance method not a class method
@@ -79,22 +85,48 @@ class SingleImageUploadMutation(graphene.Mutation):
         # Get name without extension
         # valid_filename = STORAGE.get_valid_name(file.name).split('.')[0]
 
+        ## Get thumbnail of file and save to cache
+        thumb_name, thumb_extension = os.path.splitext(file.name)
+        thumb_extension = thumb_extension.lower()
+        file_extension = thumb_extension
+
+        if thumb_extension in ['.jpg', '.jpeg']:
+            FTYPE = 'JPEG'
+        elif thumb_extension == '.gif':
+            FTYPE = 'GIF'
+        elif thumb_extension == '.png':
+            FTYPE = 'PNG'
+        else:
+            raise GraphQLError(
+                _('Weird, unrecognized file type'),
+                extensions={'code': 'invalid_image'}
+            )
+
+        # Save thumbnail to in-memory file as StringIO
+        image = Image.open(file)
+        # image = image.convert('RGB')
+        image.thumbnail(THUMBNAIL_ALIASES['']['sm_thumb']['size'], Image.ANTIALIAS)
+        thumb_file = BytesIO()
+        image.save(thumb_file, format=FTYPE)
+
         # Use random uuid as filename so as to protect user privacy; and besides we don't
         # really need the file name.
-        file_extension = file.name.split('.')[-1]
-        use_filename = str(uuid.uuid4()) + '.' + file_extension
-        base64_bytes = base64.b64encode(file.read())
+        use_filename = str(uuid.uuid4()) + file_extension
+        # thumb_file.seek(0)
+        base64_bytes = base64.b64encode(thumb_file.getvalue())
         base64_str = base64_bytes.decode('utf-8')
         mimetype = file.content_type
         # save_dir = FORM_AND_UPLOAD_DIR[form_for]
         # saved_filename = STORAGE.save(save_dir + use_filename, file)
 
+        print(file.size, thumb_file.tell())
         user_photos_list.append({
             'filename': use_filename,
             'base64_str': base64_str,
             'mimetype': mimetype
         })
         cache.set(cache_key, user_photos_list)
+        thumb_file.close()
 
         return SingleImageUploadMutation(
             success=True, 
@@ -113,7 +145,7 @@ class MultipleImageUploadMutation(graphene.Mutation):
 
     success = graphene.Boolean(default_value=True)
     filenames = graphene.List(graphene.String)
-    base64_strs = graphene.List(Base64)
+    base64_strs = graphene.List(graphene.String)
     mimetypes = graphene.List(graphene.String)
      
     # Apparently this should be an instance method not a class method
@@ -153,19 +185,41 @@ class MultipleImageUploadMutation(graphene.Mutation):
                 extensions={'code': 'max_photos_attained'}
             )
 
-        # Save files to cache
+        # Get thumbnails of files and saved to cache
         base64_strs, filenames, mimetypes = [], [], []
         for file in files:
-            # valid_filename = STORAGE.get_valid_name(file.name).split('.')[0]
-            file_extension = file.name.split('.')[-1]
-            use_filename = str(uuid.uuid4()) + '.' + file_extension
+            # Get thumbnail of file
+            thumb_name, thumb_extension = os.path.splitext(file.name)
+            thumb_extension = thumb_extension.lower()
+            file_extension = thumb_extension
+
+            if thumb_extension in ['.jpg', '.jpeg']:
+                FTYPE = 'JPEG'
+            elif thumb_extension == '.gif':
+                FTYPE = 'GIF'
+            elif thumb_extension == '.png':
+                FTYPE = 'PNG'
+            else:
+                raise GraphQLError(
+                    _('Weird, unrecognized file type'),
+                    extensions={'code': 'invalid_image'}
+                )
+
+            image = Image.open(file)
+            # image = image.convert('RGB')
+            image.thumbnail(THUMBNAIL_ALIASES['']['sm_thumb']['size'], Image.ANTIALIAS)
+            thumb_file = BytesIO()
+            image.save(thumb_file, format=FTYPE)
+            
+            use_filename = str(uuid.uuid4()) + file_extension
             mimetype = file.content_type
-            base64_bytes = base64.b64encode(file.read())
+            base64_bytes = base64.b64encode(thumb_file.getvalue())
             base64_str = base64_bytes.decode('utf-8')
 
             base64_strs.append(base64_str)
             filenames.append(use_filename)
             mimetypes.append(mimetype)
+            thumb_file.close()
 
             user_photos_list.append({
                 'filename': use_filename,
