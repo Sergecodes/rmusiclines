@@ -10,9 +10,8 @@ from shortuuid.django_fields import ShortUUIDField
 from taggit.models import TagBase
 
 from posts.constants import (
-	COMMENT_CAN_EDIT_TIME_LIMIT, 
-	POST_CAN_EDIT_TIME_LIMIT,
-	MAX_POST_LENGTH
+	COMMENT_CAN_EDIT_TIME_LIMIT, POST_CAN_EDIT_TIME_LIMIT,
+	MAX_COMMENT_LENGTH, MAX_POST_LENGTH
 )
 from .operations import PostOperations, PostHashtagOperations
 
@@ -33,9 +32,10 @@ class Post(models.Model, PostOperations):
 	# In 10 trials, the set contained the same number of elements as the list,
 	# implying that there were no collisions.
 	uuid = ShortUUIDField(length=20, unique=True, max_length=24)
-	# Max length for this field should be set to 350.
+	# Max length for post body should be set to 350.
+	# Body can be empty in case post contains only media.
 	body = models.TextField(blank=True)
-	# The language will be detected via an external language-recognition tool
+	# TODO The language will be detected via an external language-recognition tool
 	language = models.CharField(
 		_('Language'),
 		choices=LANGUAGES,
@@ -103,8 +103,9 @@ class Post(models.Model, PostOperations):
 	def clean(self):
 		if len(self.body) > MAX_POST_LENGTH:
 			raise ValidationError(
-				_('Post should have at most {} characters.'.format(MAX_POST_LENGTH)),
-				code='invalid'
+				_('Post should have at most %(max_post_length)s characters.'),
+				code='invalid',
+				params={'max_post_length': MAX_POST_LENGTH}
 			)
 
 	def save(self, *args, **kwargs):
@@ -219,6 +220,22 @@ class Comment(models.Model):
 	def is_reply(self):
 		"""Verify if comment is a reply to another comment"""
 		return not self.is_parent
+
+	def clean(self):
+		"""
+		Max length of comment body should be 1000 chars. We don't want the user to abuse an
+		unlimited field.
+		"""
+		if len(self.body) > MAX_COMMENT_LENGTH:
+			raise ValidationError(
+				_('Comments should be less than %(max_length)s characters'),
+				code='max_length',
+				params={'max_length': MAX_COMMENT_LENGTH}
+			)
+	
+	def save(self, *args, **kwargs):
+		self.clean()
+		super().save(*args, **kwargs)
 	
 	class Meta:
 		abstract = True

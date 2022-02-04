@@ -1,3 +1,4 @@
+import graphene
 from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -14,6 +15,7 @@ from graphql_auth.settings import graphql_auth_settings
 from smtplib import SMTPException
 
 from accounts.forms.users import ChangeEmailForm
+from accounts.models.artists.models import Artist
 
 User = get_user_model()
 EXPIRATION_ACTIVATION_TOKEN = timedelta(days=3)
@@ -23,6 +25,22 @@ if graphql_auth_settings.EMAIL_ASYNC_TASK and \
     async_email_func = import_string(graphql_auth_settings.EMAIL_ASYNC_TASK)
 else:
     async_email_func = None
+
+
+class ArtistCUMutationMixin:
+    """Artist Create-Update mutation mixin"""
+
+    class Meta:
+        model = Artist
+        # Exclude the `tags` field coz graphql complaints that it doesn't
+        # know how to convert(serialize) it 
+        exclude_fields = ('tags', )
+        # Ensure to use a name other than 'tags' else the tags will be 
+        # sent to the corresponding model object as a list and will raise errors
+        # when trying to save the object.
+        custom_fields = {
+            "artist_tags": graphene.List(graphene.String)
+        }
 
 
 class SendNewEmailActivationMixin(Output):

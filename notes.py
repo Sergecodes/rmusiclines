@@ -23,6 +23,9 @@ store them in database(post's photos) after the post has been validated)
 - user can change username but after changing username, they have to wait until
 after 15 days before they can change it again. 
 - possibility for poster of post to pin comment(parent) under post.
+- language of post should be auto detected
+- max length of comments should be 2000chars, just so user doesnt abuse the length; and
+for posts should be 350 chars.
 
 
 # add to database specification 

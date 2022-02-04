@@ -198,6 +198,21 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         return cls.objects.filter(is_verified=True)
 
     @property
+    def status_verified(self):
+        """
+        Graphql auth uses a custom model UserStatus to track status of users.
+        This property get the status of a user.
+        """
+        # Import here to prevent circular import errors
+        from graphql_auth.models import UserStatus
+
+        try:
+            return self.status.verified
+        except AttributeError:
+            status = UserStatus.objects.create(user=self, verified=self.is_active)
+            return status.verified
+
+    @property
     def can_change_username(self):
         """Determine if the user is permitted to change his username."""
         last_changed_on = self.last_changed_username_on

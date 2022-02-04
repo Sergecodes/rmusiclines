@@ -77,7 +77,7 @@ def set_comment_mentioned_users(sender, instance, created, **kwargs):
         action.send(
             comment.poster,
             verb='commented on',
-            target=comment.post,
+            target=comment.post_concerned,
             action_object=comment
         )
 

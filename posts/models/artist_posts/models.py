@@ -26,7 +26,6 @@ from ..common.models import (
 
 
 class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
-	# related_name can't be set on this class (TaggableManager)
 	hashtags = TaggableManager(
 		verbose_name=_('Hashtags'), 
 		through='HashtaggedArtistPost',
@@ -110,16 +109,16 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 
 	def clean(self):
 		# Ensure pinned comment is a parent comment
-		if pinned_comment := self.pinned_comment:
-			if pinned_comment.is_parent:
-				raise ValidationError(
-					_('You can only pin a parent comment'),
-					code='not_parent_comment'
-				)
+		pinned_comment = self.pinned_comment
+		if pinned_comment and not pinned_comment.is_parent:
+			raise ValidationError(
+				_('You can only pin a parent comment'),
+				code='not_parent_comment'
+			)
 
 	def save(self, *args, **kwargs):
 		self.clean()
-		super.save(*args, **kwargs)
+		super().save(*args, **kwargs)
 
 	class Meta:
 		# See https://stackoverflow.com/a/1628855/ for why this syntax is used.

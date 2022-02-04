@@ -23,7 +23,7 @@ def flagged(sender, instance, created, **kwargs):
 
 		flag_count, post = flag.count, flag.content_object
 		poster = post.poster
-		# if post is considered FLAGGED,
+		# If post is considered FLAGGED,
 		# notify user, tell him one of his posts has been flagged
 		# notify moderators so they can take desired action; 
 		# delete the post or absolve it.
@@ -57,7 +57,6 @@ def flagged(sender, instance, created, **kwargs):
 				)
 
 			return
-
 
 		# If post wasn't deleted and number of flags reaches auto deletion threshold,
 		# delete post.

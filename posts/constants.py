@@ -8,8 +8,10 @@ COMMENT_CAN_EDIT_TIME_LIMIT = timedelta(minutes=3)
 POST_CAN_EDIT_TIME_LIMIT = timedelta(minutes=3)
 
 
-# Maximum number of characters of a post
+# Maximum number of characters of a post and comment
 MAX_POST_LENGTH = 350
+MAX_COMMENT_LENGTH = 2000
+
 # Maximum number of photos per post
 MAX_NUM_PHOTOS = 4
 

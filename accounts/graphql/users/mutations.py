@@ -11,9 +11,8 @@ from graphql_auth.schema import UserNode
 from accounts.mixins import SendNewEmailActivationMixin, VerifyNewEmailMixin
 from accounts.validators import UserUsernameValidator
 from core.decorators import verification_and_login_required
-# Though it seems like this isn't used here, graphene implicitly uses it 
-# to register this type(User model) thus it should stay imported
-from .types import UserType
+# Import(implicitly register) all types
+from .types import *
 
 User = get_user_model()
 

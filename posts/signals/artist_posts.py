@@ -78,7 +78,7 @@ def set_comment_attributes(sender, instance, created, **kwargs):
     if created or 'body' in update_fields:
         comment = instance
         comment.users_mentioned.set([
-            User.objects.get(username=username) 
+            User.objects.get(username=username) \
             for username in extract_mentions(comment.body)
         ])
 
@@ -87,7 +87,7 @@ def set_comment_attributes(sender, instance, created, **kwargs):
         action.send(
             comment.poster,
             verb='commented on',
-            target=comment.post,
+            target=comment.post_concerned,
             action_object=comment
         )
 

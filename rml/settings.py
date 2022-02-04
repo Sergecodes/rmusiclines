@@ -400,6 +400,8 @@ GRAPHENE = {
 	'ATOMIC_MUTATION': True,
 	'MIDDLEWARE': [
         'graphql_jwt.middleware.JSONWebTokenMiddleware',
+		# For debugging
+		'graphene_django.debug.DjangoDebugMiddleware'
     ],
 	'DJANGO_CHOICE_FIELD_ENUM_V3_NAMING': True,
 	# 'DJANGO_CHOICE_FIELD_ENUM_CUSTOM_NAME': 'core.utils.graphene_enum_naming',

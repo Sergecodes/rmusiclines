@@ -12,6 +12,10 @@ from accounts.graphql.users.mutations import (
     ChangeUsernameMutation, ChangeEmailMutation,
     VerifyNewEmailMutation
 )
+from posts.graphql.artist_posts.mutations import (
+    CreateArtistPostMutation, PatchArtistPostMutation,
+    DeleteArtistPostMutation, 
+)
 from posts.graphql.non_artist_posts.queries import (
     NonArtistPostQuery, 
 )
@@ -28,8 +32,8 @@ class Query(UserQuery, MeQuery, NonArtistPostQuery, ArtistQuery, graphene.Object
 
 # All Mutations will be inherited here
 class Mutation(AuthRelayMutation, graphene.ObjectType):
-    debug = graphene.Field(DjangoDebug, name='__debug')
-
+    debug = graphene.Field(DjangoDebug, name='_debug')
+    
     ## Core mutations
     single_image_upload = SingleImageUploadMutation.Field()
     multiple_image_upload = MultipleImageUploadMutation.Field()
@@ -47,6 +51,10 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     delete_artist = DeleteArtistMutation.Field()
     filter_update_artist = FilterUpdateArtistMutation.Field()
 
+    ## Artist Post mutations
+    create_artist_post = CreateArtistPostMutation.Field()
+    patch_artist_post = PatchArtistPostMutation.Field()
+    delete_artist_post = DeleteArtistPostMutation.Field()
 
 
 schema = graphene.Schema(

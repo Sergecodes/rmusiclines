@@ -1,4 +1,3 @@
-import graphene
 from django.utils.translation import gettext_lazy as _
 from graphene_django_cud.mutations import (
     DjangoCreateMutation, DjangoPatchMutation,
@@ -6,26 +5,11 @@ from graphene_django_cud.mutations import (
 )
 from graphql import GraphQLError
 
+from accounts.mixins import ArtistCUMutationMixin
 from accounts.models.artists.models import Artist
-# Though it seems like this type isn't used, however, we need to import it
+# Though it seems like these types aren't used, however, we need to import them
 # cause it's implicitly used by graphene when registering mutations
-from .types import ArtistNode
-
-
-class ArtistCUMutationMixin:
-    """Artist Create-Update mutation mixin"""
-
-    class Meta:
-        model = Artist
-        # Exclude the `tags` field coz graphql complaints that it doesn't
-        # know how to convert(serialize) it 
-        exclude_fields = ('tags', )
-        # Ensure to use a name other than 'tags' else the tags will be 
-        # sent to the corresponding model object as a list and will raise errors
-        # when trying to save the object.
-        custom_fields = {
-            "artist_tags": graphene.List(graphene.String)
-        }
+from .types import *
 
 
 class CreateArtistMutation(DjangoCreateMutation):
@@ -55,9 +39,7 @@ class CreateArtistMutation(DjangoCreateMutation):
         else:
             raise GraphQLError(
                 _("Only staff can create artist"),
-                extensions={
-                    'code': "not_permitted"
-                }
+                extensions={'code': "not_permitted"}
             )
 
 
