@@ -6,7 +6,7 @@ from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
 from posts.models.artist_posts.models import (
-    ArtistPost, ArtistPostDownload, ArtistPostRepost,
+    ArtistPost, ArtistPostDownload,
     ArtistPostComment, ArtistPostCommentLike,
     ArtistPostBookmark, ArtistPostRating
 )
@@ -16,38 +16,67 @@ User = get_user_model()
 
 
 @receiver(post_save, sender=ArtistPost)
-def set_post_attributes(sender, instance, created, **kwargs):
+def set_post_attributes(sender, instance: ArtistPost, created: bool, **kwargs):
     """Parse post and set related attributes such as users mentioned, hashtags, ..."""
 
     update_fields = kwargs.get('update_fields')
     if not update_fields:
         update_fields = []
 
-    # If object is newly created or body is updated
-    # reset attributes of post.
-    if created or 'body' in update_fields:
-        post = instance
-        post_content = post.body
-        
-        post.hashtags.set(extract_hashtags(post_content))
-        post.users_mentioned.set([
-            User.objects.get(username=username) 
-            for username in extract_mentions(post_content)
-        ])
-    
-    # Add action
-    if created:
-        action.send(
-            post.poster,
-            verb=_('posted'),
-            target=post,
-        )
+    post = instance
 
-        action.send(
-            post.artist,
-            verb=_('has new post'),
-            target=post
-        )
+    # If post is a parent post
+    if post.is_parent:
+        # If object is newly created or body is updated
+        # reset attributes of post.
+        if created or 'body' in update_fields:
+            post_content = post.body
+            
+            post.hashtags.set(extract_hashtags(post_content))
+            post.users_mentioned.set([
+                User.objects.get(username=username) \
+                for username in extract_mentions(post_content)
+            ])
+        
+        # Add action
+        if created:
+            action.send(
+                post.poster,
+                verb=_('posted'),
+                target=post,
+            )
+
+            action.send(
+                post.artist,
+                verb=_('has new post'),
+                target=post
+            )
+
+    # Else if post is just a simple repost
+    elif post.is_simple_repost:
+        if created:
+            parent_post = post.parent
+            parent_post.num_simple_reposts = F('num_simple_reposts') + 1
+            parent_post.save(update_fields=['num_simple_reposts'])
+
+            action.send(
+                post.poster,
+                verb=_('shared'),  # Poster reposted post (poster shared post)
+                target=post
+            )
+    
+    # Else if post is not a simple repost(is repost with body)
+    elif not post.is_simple_repost:
+        if created:
+            parent_post = post.parent
+            parent_post.num_non_simple_reposts = F('num_non_simple_reposts') + 1
+            parent_post.save(update_fields=['num_non_simple_reposts'])
+
+            action.send(
+                post.poster,
+                verb=_('reposted'), 
+                target=post
+            )
 
 
 @receiver(post_save, sender=ArtistPost)
@@ -60,9 +89,26 @@ def increment_user_post_count(sender, instance, created, **kwargs):
 
 @receiver(post_delete, sender=ArtistPost)
 def decrement_user_post_count(sender, instance, **kwargs):
+    """Decrement user's number of artist posts"""
     poster = instance.poster
     poster.num_artist_posts = F('num_artist_posts') - 1
     poster.save(update_fields=['num_artist_posts'])
+
+
+@receiver(post_delete, sender=ArtistPost)
+def decrement_post_repost_count(sender, instance, **kwargs):
+    """Decrement parent post's number of reposts if deleted post is a repost."""
+    post = instance
+
+    if not post.is_parent:
+        parent_post = post.parent
+
+        if post.is_simple_repost:
+            parent_post.num_simple_reposts = F('num_simple_reposts') - 1
+            parent_post.save(update_fields=['num_simple_reposts'])
+        else:
+            parent_post.num_non_simple_reposts = F('num_non_simple_reposts') - 1
+            parent_post.save(update_fields=['num_non_simple_reposts'])
 
 
 @receiver(post_save, sender=ArtistPostComment)
@@ -115,39 +161,6 @@ def decrement_post_rating_count(sender, instance, **kwargs):
     post.save(update_fields=['num_stars']) 
 
 
-@receiver(post_save, sender=ArtistPostRepost)
-def increment_post_repost_count(sender, instance, created, **kwargs):
-    if created:
-        post = instance.post
-
-        if instance.comment:
-            post.num_comment_reposts = F('num_comment_reposts') + 1
-            post.save(update_fields=['num_comment_reposts'])
-        else:
-            post.num_simple_reposts = F('num_simple_reposts') + 1
-            post.save(update_fields=['num_simple_reposts'])
-
-        # Send action
-        action.send(
-            instance.reposter,
-            verb=_('reposted'),
-            target=post,
-            action_object=instance
-        )
-
-
-@receiver(post_delete, sender=ArtistPostRepost)
-def decrement_post_repost_count(sender, instance, **kwargs):
-    post = instance.post
-		
-    if instance.comment:
-        post.num_comment_reposts = F('num_comment_reposts') - 1
-        post.save(update_fields=['num_comment_reposts'])
-    else:
-        post.num_simple_reposts = F('num_simple_reposts') - 1
-        post.save(update_fields=['num_simple_reposts'])
-
-
 @receiver(post_save, sender=ArtistPostBookmark)
 def increment_post_bookmark_count(sender, instance, created, **kwargs):
     if created:
@@ -177,16 +190,16 @@ def decrement_post_download_count(sender, instance, **kwargs):
     # since it has already been downloaded to "user's" storage.
     pass
 
+
 @receiver(post_save, sender=ArtistPostComment)
 def increment_post_comment_count(sender, instance, created, **kwargs):
-    if created:
-        if instance.is_parent:
-            post, poster = instance.post_concerned, instance.poster
+    if created and instance.is_parent:
+        post, poster = instance.post_concerned, instance.poster
 
-            post.num_parent_comments = F('num_parent_comments') + 1
-            post.save(update_fields=['num_parent_comments'])
-            poster.num_parent_artist_post_comments = F('num_parent_artist_post_comments') + 1
-            poster.save(update_fields=['num_parent_artist_post_comments'])
+        post.num_parent_comments = F('num_parent_comments') + 1
+        post.save(update_fields=['num_parent_comments'])
+        poster.num_parent_artist_post_comments = F('num_parent_artist_post_comments') + 1
+        poster.save(update_fields=['num_parent_artist_post_comments'])
 
 
 @receiver(post_delete, sender=ArtistPostComment)

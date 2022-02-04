@@ -19,9 +19,8 @@ from posts.constants import (
 from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import NonArtistPostOperations
 from ..common.models import (
-    Post, PostHashtag, 
-    PostRating, PostRepost,
-    Comment, CommentLike
+    Post, PostHashtag, PostRating, 
+	Comment, CommentLike
 )
 
 
@@ -30,6 +29,15 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		verbose_name=_('Hashtags'), 
 		through='HashtaggedNonArtistPost',
 		related_name='non_artist_posts',
+		blank=True
+	)
+	parent = models.ForeignKey(
+		'self',
+		on_delete=models.CASCADE,
+		related_name='reposts',
+		related_query_name='repost',
+		db_column='parent_post_id',
+		null=True,
 		blank=True
 	)
 	poster = models.ForeignKey(
@@ -61,13 +69,13 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		related_query_name='rated_non_artist_post',
 		blank=True
 	)
-	reposters = models.ManyToManyField(
-		settings.AUTH_USER_MODEL,
-		through='NonArtistPostRepost',
-		related_name='reposted_non_artist_posts',
-		related_query_name='reposted_non_artist_post',
-		blank=True
-	)
+	# reposters = models.ManyToManyField(
+	# 	settings.AUTH_USER_MODEL,
+	# 	through='NonArtistPostRepost',
+	# 	related_name='reposted_non_artist_posts',
+	# 	related_query_name='reposted_non_artist_post',
+	# 	blank=True
+	# )
 	bookmarkers = models.ManyToManyField(
 		settings.AUTH_USER_MODEL,
 		through='NonArtistPostBookmark',
@@ -225,38 +233,6 @@ class NonArtistPostMention(models.Model):
 			models.UniqueConstraint(
 				fields=['post', 'user_mentioned'],
 				name='unique_non_artist_post_user_mention'
-			),
-		]
-
-
-class NonArtistPostRepost(PostRepost, UsesCustomSignal):
-	"""Non artist post and reposter through model"""
-
-	post = models.ForeignKey(
-		NonArtistPost,
-		db_column='non_artist_post_id',
-		on_delete=models.CASCADE,
-		related_name='reposts',
-		related_query_name='repost',
-	)
-	reposter = models.ForeignKey(
-		settings.AUTH_USER_MODEL,
-		db_column='user_id',
-		on_delete=models.CASCADE,
-		related_name='non_artist_post_reposts',
-		related_query_name='non_artist_post_repost',
-	)
-
-	def __str__(self):
-		return f'Post {str(self.post)} reposted by {str(self.reposter)}'
-
-	class Meta:
-		db_table = 'posts\".\"non_artist_post_repost'
-		ordering = ['-reposted_on']
-		constraints = [
-			models.UniqueConstraint(
-				fields=['post', 'reposter'],
-				name='unique_non_artist_post_repost'
 			),
 		]
 

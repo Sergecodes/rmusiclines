@@ -14,7 +14,8 @@ from accounts.graphql.users.mutations import (
 )
 from posts.graphql.artist_posts.mutations import (
     CreateArtistPostMutation, PatchArtistPostMutation,
-    DeleteArtistPostMutation, 
+    DeleteArtistPostMutation, RepostArtistPostMutation,
+
 )
 from posts.graphql.non_artist_posts.queries import (
     NonArtistPostQuery, 
@@ -55,12 +56,9 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     create_artist_post = CreateArtistPostMutation.Field()
     patch_artist_post = PatchArtistPostMutation.Field()
     delete_artist_post = DeleteArtistPostMutation.Field()
+    repost_artist_post = RepostArtistPostMutation.Field()
 
 
-schema = graphene.Schema(
-    query=Query, 
-    mutation=Mutation, 
-    # types=[]
-)
+schema = graphene.Schema(query=Query, mutation=Mutation)
 
 

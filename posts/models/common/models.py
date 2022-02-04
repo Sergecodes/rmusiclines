@@ -45,6 +45,9 @@ class Post(models.Model, PostOperations):
 	created_on = models.DateTimeField(auto_now_add=True, editable=False)
 	last_updated_on = models.DateTimeField(auto_now=True, editable=False)
 	is_private = models.BooleanField(default=False)
+	# Is post a normal repost(repost without body)? If it is null, then post is a 
+	# parent(post is not a repost)
+	is_simple_repost = models.BooleanField(null=True, blank=True)
 	num_parent_comments = models.PositiveIntegerField(
 		_('Number of parent comments'),
 		default=0,
@@ -71,12 +74,12 @@ class Post(models.Model, PostOperations):
 		editable=False
 	)
 	num_simple_reposts = models.PositiveIntegerField(
-		_('Number of reposts without a comment'),
+		_('Number of reposts without body'),
 		default=0, 
 		editable=False
 	)
-	num_comment_reposts = models.PositiveIntegerField(
-		_('Number of reposts with a comment'),
+	num_non_simple_reposts = models.PositiveIntegerField(
+		_('Number of reposts with body'),
 		default=0, 
 		editable=False
 	)
@@ -85,8 +88,12 @@ class Post(models.Model, PostOperations):
 		return self.body
 
 	@property
+	def is_parent(self):
+		return True if self.parent is None else False
+
+	@property
 	def num_reposts(self):
-		return self.num_simple_reposts + self.num_comment_reposts
+		return self.num_simple_reposts + self.num_non_simple_reposts
 	
 	@property
 	def can_be_edited(self):
@@ -167,14 +174,6 @@ class PostHashtag(TagBase, PostHashtagOperations):
 		]
 
 
-class PostRepost(models.Model):
-	comment = models.TextField(blank=True)
-	reposted_on = models.DateTimeField(auto_now_add=True, editable=False)
-
-	class Meta:
-		abstract = True
-
-
 class PostRating(models.Model):
 	num_stars = models.PositiveIntegerField(editable=False)
 	rated_on = models.DateTimeField(auto_now_add=True, editable=False)
@@ -203,11 +202,14 @@ class Comment(models.Model):
 	created_on = models.DateTimeField(auto_now_add=True, editable=False)
 	num_likes = models.PositiveIntegerField(default=0, editable=False)
 	num_replies = models.PositiveIntegerField(default=0, editable=False)
-	# Is the comment an actual comment on the post or a reply to another comment
-	is_parent = models.BooleanField(default=True)
 	
 	def __str__(self):
 		return self.body
+
+	@property
+	def is_parent(self):
+		"""Is the comment an actual comment on the post or a reply to another comment"""
+		return True if self.parent is None else False
 
 	@property
 	def can_be_edited(self):

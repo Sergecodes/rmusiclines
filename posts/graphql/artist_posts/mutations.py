@@ -5,11 +5,13 @@ from graphene_django_cud.mutations import (
     DjangoCreateMutation, DjangoPatchMutation,
     DjangoDeleteMutation,
 )
+from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
+from graphql_auth.decorators import login_required
 
 from posts.constants import MAX_COMMENT_LENGTH, POST_CAN_EDIT_TIME_LIMIT
 from posts.models.artist_posts.models import (
-    ArtistPost, ArtistPostComment
+    ArtistPost, ArtistPostComment, 
 )
 # Import types
 from .types import *
@@ -127,4 +129,22 @@ class DeleteArtistPostMutation(DjangoDeleteMutation):
         raise GraphQLError("Not permitted to access this mutation.")    
     
 
+# class RepostArtistPostMutation(graphene.relay.ClientIDMutation):
+
+#     class Input:
+#         post_id = graphene.ID(required=True)
+#         comment = graphene.String(required=False)
+
+#     repost = graphene.Field(ArtistPostRepostNode)
+
+#     @classmethod
+#     @login_required
+#     def mutate_and_get_payload(cls, root, info, **input):
+#         repost = ArtistPostRepost.objects.create(
+#             comment=input.get('comment', ''),
+#             post_id=disambiguate_id(input['post_id']),
+#             reposter=info.context.user
+#         )
+
+#         return RepostArtistPostMutation(repost=repost)
 

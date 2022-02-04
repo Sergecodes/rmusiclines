@@ -21,7 +21,7 @@ from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import ArtistPostOperations
 from ..common.models import (
     Post, PostHashtag, PostRating, 
-	PostRepost, Comment, CommentLike
+	Comment, CommentLike
 )
 
 
@@ -30,6 +30,15 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		verbose_name=_('Hashtags'), 
 		through='HashtaggedArtistPost',
 		related_name='artist_posts',
+		blank=True
+	)
+	parent = models.ForeignKey(
+		'self',
+		on_delete=models.CASCADE,
+		related_name='reposts',
+		related_query_name='repost',
+		db_column='parent_post_id',
+		null=True,
 		blank=True
 	)
 	poster = models.ForeignKey(
@@ -72,14 +81,6 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		related_query_name='rated_artist_post',
 		blank=True
 	)
-	reposters = models.ManyToManyField(
-		settings.AUTH_USER_MODEL,
-		verbose_name=_('Reposter'),
-		through='ArtistPostRepost',
-		related_name='reposted_artist_posts',
-		related_query_name='reposted_artist_post',
-		blank=True
-	)
 	bookmarkers = models.ManyToManyField(
 		settings.AUTH_USER_MODEL,
 		verbose_name=_('Bookmarkers'),
@@ -99,8 +100,13 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 
 	@property
 	def parent_comments(self):
-		"""Get comments that are comments to post and not replies"""
-		return self.overall_comments.filter(is_parent=True)
+		"""Get comments that are comments to post(parents) and not replies"""
+		return self.overall_comments.filter(parent__isnull=True)
+
+	@property
+	def non_simple_reposts(self):
+		"""Get reposts that have a body(that are not just reposts)"""
+		return self.reposts.filter(is_simple_repost=False)
 
 	@property
 	def get_tags(self)-> list:
@@ -251,40 +257,6 @@ class ArtistPostMention(models.Model):
 			models.UniqueConstraint(
 				fields=['post', 'user_mentioned'],
 				name='unique_artist_post_user_mention'
-			),
-		]
-
-
-class ArtistPostRepost(PostRepost, UsesCustomSignal):
-	"""Artist post and reposter through model"""
-
-	post = models.ForeignKey(
-		ArtistPost,
-		db_column='artist_post_id',
-		on_delete=models.CASCADE,
-		# The related_name property permits accessing extra fields used 
-		# in a through model
-		related_name='reposts',
-		related_query_name='repost',
-	)
-	reposter = models.ForeignKey(
-		settings.AUTH_USER_MODEL,
-		db_column='user_id',
-		on_delete=models.CASCADE,
-		related_name='artist_post_reposts',
-		related_query_name='artist_post_repost',
-	)
-
-	def __str__(self):
-		return f'Post {str(self.post)} reposted by {str(self.reposter)}'
-	
-	class Meta:
-		db_table = 'posts\".\"artist_post_repost'
-		ordering = ['-reposted_on']
-		constraints = [
-			models.UniqueConstraint(
-				fields=['post', 'reposter'],
-				name='unique_artist_post_repost'
 			),
 		]
 

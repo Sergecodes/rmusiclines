@@ -1,14 +1,22 @@
+import graphene
 from django.contrib.auth import get_user_model
-from django.utils.translation import gettext_lazy as _
-from graphene_django import DjangoObjectType
-from core.utils import PKMixin
+from graphql_auth.schema import UserNode as BaseUserNode
+from graphql_auth.settings import graphql_auth_settings
 
 User = get_user_model()
 
 
-class UserType(PKMixin, DjangoObjectType):
+# class UserType(PKMixin, DjangoObjectType):
+#     class Meta:
+#         model = User
+
+
+class UserAccountNode(BaseUserNode):
     class Meta:
         model = User
+        filter_fields = graphql_auth_settings.USER_NODE_FILTER_FIELDS
+        exclude = graphql_auth_settings.USER_NODE_EXCLUDE_FIELDS
+        interfaces = (graphene.relay.Node, )
 
 
 

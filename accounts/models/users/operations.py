@@ -11,11 +11,11 @@ from accounts.models.artists.models import ArtistFollow
 from flagging.models.models import Flag
 from posts.models.artist_posts.models import (
 	ArtistPostBookmark, ArtistPostDownload,
-	ArtistPostRating, ArtistPostRepost,
+	ArtistPostRating, 
 )
 from posts.models.non_artist_posts.models import (
 	NonArtistPostBookmark, NonArtistPostDownload,
-	NonArtistPostRating, NonArtistPostRepost
+	NonArtistPostRating,
 )
 
 
@@ -209,28 +209,18 @@ class UserOperations:
 		NonArtistPostBookmark.objects.get(post=post, rater=self).delete()
 	
 	def repost_artist_post(self, post, comment=''):
-		ArtistPostRepost.objects.create(
-			post=post,
-			reposter=self,
-			comment=comment
-		)
+		pass
 
 	def repost_non_artist_post(self, post, comment=''):
-		NonArtistPostRepost.objects.create(
-			post=post,
-			reposter=self,
-			comment=comment
-		)
+		pass
 
 	def delete_artist_post_repost(self, repost_id):
 		# Use repost_id since we can't delete by filtering on
 		# reposter and post.
-		ArtistPostRepost.objects.get(id=repost_id).delete()
+		pass
 
 	def delete_artist_post_repost(self, repost_id):
-		# Use repost_id since we can't delete by filtering on
-		# reposter and post.
-		NonArtistPostRepost.objects.get(id=repost_id).delete()
+		pass
 
 
 class SuspensionOperations:

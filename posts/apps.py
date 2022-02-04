@@ -14,7 +14,6 @@ class PostsConfig(AppConfig):
         # (via django-activity-stream)
         # Artist post models
         registry.register(self.get_model('ArtistPost'))
-        registry.register(self.get_model('ArtistPostRepost'))
         registry.register(self.get_model('ArtistPostRating'))
         registry.register(self.get_model('ArtistPostComment'))
         # registry.register(self.get_model('ArtistPostBookmark'))
@@ -24,7 +23,6 @@ class PostsConfig(AppConfig):
 
         # Non artist post models
         registry.register(self.get_model('NonArtistPost'))
-        registry.register(self.get_model('NonArtistPostRepost'))
         registry.register(self.get_model('NonArtistPostRating'))
         registry.register(self.get_model('NonArtistPostComment'))
         # registry.register(self.get_model('NonArtistPostMention'))

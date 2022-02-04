@@ -2,6 +2,9 @@
 # TODO
 - create other models mutations(for post create/update mutations, read photos in cache and 
 store them in database(post's photos) after the post has been validated)
+( ' use relay mutations or convert all mutations to use relay
+  ' use graphql_auth.decorators.login_required and not my verification_and_login_required
+)
 - enable pfp and cover photo upload for user profile
 (appropriate size validators for pfp & cover photo, use params in post.validators file)
 - setup social authentication (django graphql social auth...)
@@ -9,6 +12,7 @@ store them in database(post's photos) after the post has been validated)
 - setup memcached for storing sessions and for general caching !! (performance reasons)
 - save post content/images in cache if user doesn't post it.
 # how to optimize/compress base64 strings...
+
 
 # add to site specification:
 (- remove avatar images ? )

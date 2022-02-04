@@ -3,13 +3,9 @@ from graphene_django import DjangoObjectType
 
 from core.utils import PKMixin
 from posts.models.artist_posts.models import (
-    ArtistPost, ArtistPostComment
+    ArtistPost, ArtistPostComment,
+
 )
-
-
-class ArtistPostType(DjangoObjectType):
-    class Meta:
-        model = ArtistPost
 
 
 class ArtistPostNode(PKMixin, DjangoObjectType):
@@ -30,4 +26,7 @@ class ArtistPostCommentNode(PKMixin, DjangoObjectType):
     class Meta:
         model = ArtistPostComment
         interfaces = [graphene.relay.Node, ]
+
+
+
 

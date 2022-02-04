@@ -4,14 +4,14 @@ from .models.artist_posts.models import (
     ArtistPost, ArtistPostBookmark, ArtistPostComment,
     ArtistPostCommentLike, ArtistPostCommentMention,
     ArtistPostDownload, ArtistPostPhoto, ArtistPostVideo,
-    ArtistPostRepost, ArtistPostRating, ArtistPostMention, 
+    ArtistPostRating, ArtistPostMention, 
 )
 from .models.common.models import PostHashtag
 from .models.non_artist_posts.models import (
     NonArtistPost, NonArtistPostBookmark, NonArtistPostComment,
     NonArtistPostCommentLike, NonArtistPostCommentMention,
     NonArtistPostDownload, NonArtistPostPhoto, NonArtistPostVideo,
-    NonArtistPostRepost, NonArtistPostRating, NonArtistPostMention, 
+    NonArtistPostRating, NonArtistPostMention, 
 )
 
 
@@ -111,7 +111,6 @@ admin.site.register(ArtistPostCommentMention, ArtistPostCommentMentionAdmin)
 admin.site.register(ArtistPostDownload, ArtistPostDownloadAdmin)
 admin.site.register(ArtistPostPhoto, ArtistPostPhotoAdmin)
 admin.site.register(ArtistPostVideo, ArtistPostVideoAdmin)
-admin.site.register(ArtistPostRepost, ArtistPostRepostAdmin)
 admin.site.register(ArtistPostRating, ArtistPostRatingAdmin)
 admin.site.register(ArtistPostMention, ArtistPostMentionAdmin)
 
@@ -185,6 +184,5 @@ admin.site.register(NonArtistPostCommentMention, NonArtistPostCommentMentionAdmi
 admin.site.register(NonArtistPostDownload, NonArtistPostDownloadAdmin)
 admin.site.register(NonArtistPostPhoto, NonArtistPostPhotoAdmin)
 admin.site.register(NonArtistPostVideo, NonArtistPostVideoAdmin)
-admin.site.register(NonArtistPostRepost, NonArtistPostRepostAdmin)
 admin.site.register(NonArtistPostRating, NonArtistPostRatingAdmin)
 admin.site.register(NonArtistPostMention, NonArtistPostMentionAdmin)
