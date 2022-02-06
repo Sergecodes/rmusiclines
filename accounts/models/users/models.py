@@ -158,8 +158,10 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     num_following = models.PositiveIntegerField(default=0)
     num_artist_posts = models.PositiveIntegerField(default=0)
     num_non_artist_posts = models.PositiveIntegerField(default=0)
-    num_parent_artist_post_comments = models.PositiveIntegerField(default=0)
-    num_parent_non_artist_post_comments = models.PositiveIntegerField(default=0)
+    num_artist_post_reposts = models.PositiveIntegerField(default=0)
+    num_non_artist_post_reposts = models.PositiveIntegerField(default=0)
+    num_ancestor_artist_post_comments = models.PositiveIntegerField(default=0)
+    num_ancestor_non_artist_post_comments = models.PositiveIntegerField(default=0)
 
     # EMAIL_FIELD needs to be set for graphql-auth
     EMAIL_FIELD = 'email'
@@ -242,7 +244,8 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
             return True
         
         # Verify if user has reached monthly download limit
-        current_month, current_year = timezone.now().month, timezone.now().year
+        now = timezone.now()
+        current_month, current_year = now.month, now.year
         current_num_downloads = self.num_downloads(current_month, current_year)
 
         if current_num_downloads == NON_PREMIUM_USER_MAX_DOWNLOADS_PER_MONTH:
@@ -375,7 +378,7 @@ class UserBlocking(models.Model):
 
     def save(self, *args, **kwargs):
         self.clean()
-        super.save(*args, **kwargs)
+        super().save(*args, **kwargs)
         
 
     class Meta:
@@ -420,7 +423,7 @@ class UserFollow(models.Model):
 
     def save(self, *args, **kwargs):
         self.clean()
-        super.save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
     class Meta:
         db_table = 'accounts\".\"user_follow'

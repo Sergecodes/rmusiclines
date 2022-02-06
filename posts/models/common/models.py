@@ -48,8 +48,8 @@ class Post(models.Model, PostOperations):
 	# Is post a normal repost(repost without body)? If it is null, then post is a 
 	# parent(post is not a repost)
 	is_simple_repost = models.BooleanField(null=True, blank=True)
-	num_parent_comments = models.PositiveIntegerField(
-		_('Number of parent comments'),
+	num_ancestor_comments = models.PositiveIntegerField(
+		_('Number of ancestor comments'),
 		default=0,
 		editable=False
 	)
@@ -201,15 +201,27 @@ class Comment(models.Model):
 	last_updated_on = models.DateTimeField(auto_now=True, editable=False)
 	created_on = models.DateTimeField(auto_now_add=True, editable=False)
 	num_likes = models.PositiveIntegerField(default=0, editable=False)
-	num_replies = models.PositiveIntegerField(default=0, editable=False)
+	# If comment is an ancestor, this will hold its number of child comments(its number
+	# of descendant comments). Else it will be null
+	num_child_comments = models.PositiveIntegerField(blank=True, null=True, editable=False)
 	
 	def __str__(self):
 		return self.body
 
 	@property
-	def is_parent(self):
-		"""Is the comment an actual comment on the post or a reply to another comment"""
-		return True if self.parent is None else False
+	def is_ancestor(self):
+		"""Is the comment a direct comment on the post or a sub comment"""
+		return True if self.ancestor is None else False
+
+	@property
+	def is_child_comment(self):
+		"""Verify if comment is a reply to another comment(if comment is a sub comment)"""
+		return not self.is_ancestor
+
+	@property
+	def is_reply_to_an_ancestor(self):
+		"""Is the comment a reply to an ancestor comment"""
+		return not self.is_ancestor and self.ancestor == self.parent
 
 	@property
 	def can_be_edited(self):
@@ -217,11 +229,6 @@ class Comment(models.Model):
 		if timezone.now() - self.created_on > COMMENT_CAN_EDIT_TIME_LIMIT:
 			return False
 		return True
-
-	@property
-	def is_reply(self):
-		"""Verify if comment is a reply to another comment"""
-		return not self.is_parent
 
 	def clean(self):
 		"""

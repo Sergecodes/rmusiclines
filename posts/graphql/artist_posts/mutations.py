@@ -1,5 +1,8 @@
 import graphene
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
+from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from graphene_django_cud.mutations import (
     DjangoCreateMutation, DjangoPatchMutation,
@@ -9,12 +12,17 @@ from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
 from graphql_auth.decorators import login_required
 
-from posts.constants import MAX_COMMENT_LENGTH, POST_CAN_EDIT_TIME_LIMIT
+from core.constants import FILE_STORAGE_CLASS
+from posts.constants import POST_CAN_EDIT_TIME_LIMIT, FORM_AND_UPLOAD_DIR
 from posts.models.artist_posts.models import (
-    ArtistPost, ArtistPostComment, 
+    ArtistPost, ArtistPostComment, ArtistPostPhoto
 )
 # Import types
+from ..common.types import *
+from ..common.utils import validate_comment
 from .types import *
+
+STORAGE = FILE_STORAGE_CLASS()
 
 
 class CreateArtistPostMutation(DjangoCreateMutation):
@@ -37,12 +45,7 @@ class CreateArtistPostMutation(DjangoCreateMutation):
         to model fields
         """
         comment_body = input.get('pinned_comment_body', '')
-        if len(comment_body) > MAX_COMMENT_LENGTH:
-            raise ValidationError(
-				_('Comments should be less than %(max_length)s characters'),
-				code='max_length',
-				params={'max_length': MAX_COMMENT_LENGTH}
-			)
+        validate_comment(comment_body)
             
         return super().validate(root, info, input)
 
@@ -65,6 +68,24 @@ class CreateArtistPostMutation(DjangoCreateMutation):
             post.is_private = True
         
         post.save()
+
+        # Save photos in cache(if any) to post
+        save_dir = FORM_AND_UPLOAD_DIR['artist_post_photo']
+        cache_key = f'{poster.username}-unposted-photos'
+        user_photos_list = cache.get(cache_key, [])
+
+        for photo_dict in user_photos_list:
+            img_file = ContentFile(photo_dict['file_bytes'])
+            saved_filename = STORAGE.save(save_dir + photo_dict['filename'], img_file)
+            ArtistPostPhoto.objects.create(post=post, photo=saved_filename)
+
+        # Save vidoes in cache if any
+        # TODO
+        # cache_key = f'{...}-unposted-video'
+        # ...
+
+        # Clear cache
+        # TODO
 
         # Save pinned comment in case it was also passed
         comment_body = input.get('pinned_comment_body', '')
@@ -109,42 +130,157 @@ class PatchArtistPostMutation(DjangoPatchMutation):
             raise GraphQLError(err, extensions={'code': 'not_editable'})
         
 
-class DeleteArtistPostMutation(DjangoDeleteMutation):
-    class Meta:
-        model = ArtistPost    
-        
+class DeleteArtistPostMutation(graphene.relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    post_id = graphene.Int()
+
     @classmethod
-    def check_permissions(cls, root, info, id, obj: ArtistPost):
-        """
-        Only poster or staff can delete post, moderator can also delete post if it's flagged
-        """
-        user = info.context.user
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        post_id = disambiguate_id(input['post_id'])
+        deleted_obj_id = info.context.user.delete_artist_post(post_id)
 
-        if user.is_staff or user.id == obj.poster_id:
-            return
+        # post_id will(should) always be equal to deleted_obj_id
 
-        if user.is_mod and obj.is_flagged:
-            return 
-
-        raise GraphQLError("Not permitted to access this mutation.")    
+        return DeleteArtistPostMutation(deleted=True, post_id=deleted_obj_id)
     
 
-# class RepostArtistPostMutation(graphene.relay.ClientIDMutation):
+class RepostArtistPostMutation(graphene.relay.ClientIDMutation):
 
-#     class Input:
-#         post_id = graphene.ID(required=True)
-#         comment = graphene.String(required=False)
+    class Input:
+        parent_post_id = graphene.ID(required=True)
+        repost_type = REPOST_TYPE(required=True, default_value=REPOST_TYPE.SIMPLE_REPOST)
+        body = graphene.String()
+        # If user reposts with a comment, then that comment is pinned by default.
+        pinned_comment_body = graphene.String()
 
-#     repost = graphene.Field(ArtistPostRepostNode)
+    repost = graphene.Field(ArtistPostNode)
 
-#     @classmethod
-#     @login_required
-#     def mutate_and_get_payload(cls, root, info, **input):
-#         repost = ArtistPostRepost.objects.create(
-#             comment=input.get('comment', ''),
-#             post_id=disambiguate_id(input['post_id']),
-#             reposter=info.context.user
-#         )
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        # Validate comment length
+        comment_body = input.get('pinned_comment_body', '')
+        validate_comment(comment_body)
 
-#         return RepostArtistPostMutation(repost=repost)
+        body, repost_type = input['body'], input['repost_type']
+        poster = info.context.user
+        parent_post = ArtistPost.objects.get(id=disambiguate_id(input['parent_post_id']))
+
+        # Create repost
+        if repost_type == REPOST_TYPE.SIMPLE_REPOST:
+            repost = ArtistPost.objects.create(
+                is_simple_repost=True,
+                body=body,
+                poster=poster,
+                parent=parent_post,
+                artist=parent_post.artist
+            )
+
+        elif repost_type == REPOST_TYPE.NON_SIMPLE_REPOST:
+            repost = ArtistPost.objects.create(
+                is_simple_repost=False,
+                body=body,
+                poster=poster,
+                parent=parent_post,
+                artist=parent_post.artist
+            )
+
+            # TODO add media in cache to post
+
+        # Save pinned comment in case it was also passed
+        if comment_body:
+            comment = ArtistPostComment.objects.create(
+                body=comment_body, 
+                poster=poster, 
+                post_concerned=repost
+            )
+            repost.pinned_comment = comment
+            repost.save(update_fields=['pinned_comment'])
+            
+        return RepostArtistPostMutation(repost=repost)
+
+
+# I can't use django-cud's create mutation because apparently it has
+# a problem when the db_column is set using a name other than the {field_name}_id
+class RecordArtistPostDownloadMutation(graphene.relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    post_download = graphene.Field(ArtistPostDownloadNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        download_obj = user.record_artist_post_download(disambiguate_id(input['post_id']))
+
+        return RecordArtistPostDownloadMutation(post_download=download_obj)
+
+
+class BookmarkArtistPostMutation(graphene.relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    post_bookmark = graphene.Field(ArtistPostBookmarkNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        bookmark_obj = user.bookmark_artist_post(disambiguate_id(input['post_id']))
+
+        return BookmarkArtistPostMutation(post_bookmark=bookmark_obj)
+
+
+class DeleteArtistPostBookmarkMutation(graphene.relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    bookmark_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        post_id = disambiguate_id(input['post_id'])
+        deleted_obj_id = info.context.user.remove_artist_post_bookmark(post_id)
+
+        return DeleteArtistPostMutation(deleted=True, bookmark_id=deleted_obj_id)
+    
+
+class RateArtistPostMutation(graphene.relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+        num_stars = RATING_STARS(required=True)
+
+    post_rating = graphene.Field(ArtistPostRatingNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        created_obj = user.rate_artist_post(disambiguate_id(input['post_id']), input['num_stars'])
+
+        return RateArtistPostMutation(post_rating=created_obj)
+
+
+class DeleteArtistPostRatingMutation(graphene.relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    rating_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        deleted_obj_id = user.remove_artist_post_rating(disambiguate_id(input['post_id']))
+
+        return DeleteArtistPostMutation(deleted=True, rating_id=deleted_obj_id)
+
 

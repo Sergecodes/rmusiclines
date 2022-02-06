@@ -9,29 +9,18 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.utils.translation import gettext_lazy as _
-from easy_thumbnails.files import get_thumbnailer
-from easy_thumbnails.templatetags.thumbnail import thumbnail_url
 from graphene_file_upload.scalars import Upload
 from graphql import GraphQLError
 from io import BytesIO
 from PIL import Image
 
-from core.constants import FILE_STORAGE_CLASS, ImageFormEnum as FormForEnum
+from core.constants import FILE_STORAGE_CLASS
 from core.decorators import verification_and_login_required
 from core.graphql.types import ImageFormEnum
-from core.forms import ArtistPhotoForm
-from posts.constants import (
-    MAX_NUM_PHOTOS, ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-    NON_ARTIST_POSTS_PHOTOS_UPLOAD_DIR
-)
-from posts.validators import validate_post_photo_file
+from posts.constants import MAX_NUM_PHOTOS
+from posts.validators import validate_post_photo_file, validate_cache_media
 
 STORAGE = FILE_STORAGE_CLASS()
-# Initialise form upload dict
-FORM_AND_UPLOAD_DIR = {
-    FormForEnum.ARTIST_POST_PHOTO.value: ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-    FormForEnum.NON_ARTIST_POST_PHOTO.value: NON_ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-}
 THUMBNAIL_ALIASES = settings.THUMBNAIL_ALIASES
 
 
@@ -113,7 +102,15 @@ class SingleImageUploadMutation(graphene.Mutation):
         # really need the file name.
         use_filename = str(uuid.uuid4()) + file_extension
         # thumb_file.seek(0)
-        base64_bytes = base64.b64encode(thumb_file.getvalue())
+
+        # Will be used with ContentFile to regenerate the file so as to save to
+        # model object when posting a post
+            # from django.core.files.base import ContentFile
+            # img_file = ContentFile(img_io.getvalue())
+            # saved_file_name = STORAGE.save(save_dir + valid_name, img_file)
+
+        file_bytes = thumb_file.getvalue()
+        base64_bytes = base64.b64encode(file_bytes)
         base64_str = base64_bytes.decode('utf-8')
         mimetype = file.content_type
         # save_dir = FORM_AND_UPLOAD_DIR[form_for]
@@ -121,8 +118,8 @@ class SingleImageUploadMutation(graphene.Mutation):
 
         print(file.size, thumb_file.tell())
         user_photos_list.append({
+            'file_bytes': file_bytes,
             'filename': use_filename,
-            'base64_str': base64_str,
             'mimetype': mimetype
         })
         cache.set(cache_key, user_photos_list)
@@ -213,7 +210,8 @@ class MultipleImageUploadMutation(graphene.Mutation):
             
             use_filename = str(uuid.uuid4()) + file_extension
             mimetype = file.content_type
-            base64_bytes = base64.b64encode(thumb_file.getvalue())
+            file_bytes = thumb_file.getvalue()
+            base64_bytes = base64.b64encode(file_bytes)
             base64_str = base64_bytes.decode('utf-8')
 
             base64_strs.append(base64_str)
@@ -222,8 +220,8 @@ class MultipleImageUploadMutation(graphene.Mutation):
             thumb_file.close()
 
             user_photos_list.append({
+                'file_bytes': file_bytes,
                 'filename': use_filename,
-                'base64_str': base64_str,
                 'mimetype': mimetype
             })
         

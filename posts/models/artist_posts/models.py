@@ -13,16 +13,10 @@ from core.constants import FILE_STORAGE_CLASS
 from core.fields import DynamicStorageFileField
 from core.utils import UsesCustomSignal
 from flagging.mixins import FlagMixin
-from posts.constants import (
-	ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-	ARTIST_POSTS_VIDEOS_UPLOAD_DIR
-)
+from posts.constants import ARTIST_POSTS_PHOTOS_UPLOAD_DIR, ARTIST_POSTS_VIDEOS_UPLOAD_DIR
 from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import ArtistPostOperations
-from ..common.models import (
-    Post, PostHashtag, PostRating, 
-	Comment, CommentLike
-)
+from ..common.models import Post, PostHashtag, PostRating, Comment, CommentLike
 
 
 class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
@@ -120,6 +114,13 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 			raise ValidationError(
 				_('You can only pin a parent comment'),
 				code='not_parent_comment'
+			)
+
+		# Ensure post and parent concern the same artist
+		if self.parent.artist_id != self.artist_id:
+			raise ValidationError(
+				_('An artist post repost must be of the same artist as the parent post'),
+				code='invalid'
 			)
 
 	def save(self, *args, **kwargs):
@@ -261,7 +262,7 @@ class ArtistPostMention(models.Model):
 		]
 
 
-class ArtistPostRating(PostRating, UsesCustomSignal):
+class ArtistPostRating(PostRating):
 	"""Artist post and rater through model"""
 
 	post = models.ForeignKey(
@@ -296,7 +297,7 @@ class ArtistPostRating(PostRating, UsesCustomSignal):
 		]
 
 
-class ArtistPostBookmark(models.Model, UsesCustomSignal):
+class ArtistPostBookmark(models.Model):
 	"""Artist post and bookmarker through model"""
 
 	post = models.ForeignKey(
@@ -340,7 +341,7 @@ class ArtistPostDownload(models.Model):
 		db_column='user_id',
 		on_delete=models.CASCADE,
 		# These will permit querying on the through model,
-		# such as querying on the download_on field.
+		# such as querying on the downloaded_on field.
 		# see https://gist.github.com/jacobian/827937 -- 
 		# (see test_member_groups() method)
 		related_name='artist_post_downloads',
@@ -356,14 +357,28 @@ class ArtistPostDownload(models.Model):
 
 
 class ArtistPostComment(Comment, FlagMixin, UsesCustomSignal):
+	# A parent comment is a comment 
 	parent = models.ForeignKey(
 		'self',
-		on_delete=models.CASCADE,
+		on_delete=models.SET_NULL,
 		related_name='replies',
 		related_query_name='reply',
 		db_column='parent_comment_id',
 		# Is nullable since comment can be direct comment on post 
-		# hence it doesn't have a parent comment
+		# hence it doesn't have a parent comment or its parent may be deleted.
+		# For instance, if a YouTube sub comment is deleted, replies aren't deleted
+		blank=True,
+		null=True
+	)
+	# Ancestor comment is direct comment on post
+	ancestor = models.ForeignKey(
+		'self',
+		on_delete=models.CASCADE,
+		related_name='child_comments',
+		related_query_name='child_comment',
+		db_column='ancestor_comment_id',
+		# Is nullable since comment can be direct comment on post 
+		# hence it doesn't have an ancestor comment
 		blank=True,
 		null=True
 	)
@@ -398,10 +413,10 @@ class ArtistPostComment(Comment, FlagMixin, UsesCustomSignal):
 
 	class Meta: 
 		db_table = 'posts\".\"artist_post_comment'
-		ordering = ['-num_likes', '-created_on', '-num_replies']
+		ordering = ['-num_likes', '-created_on', '-num_child_comments']
 
 
-class ArtistPostCommentLike(CommentLike, UsesCustomSignal):
+class ArtistPostCommentLike(CommentLike):
 	comment = models.ForeignKey(
 		ArtistPostComment,
 		db_column='artist_post_comment_id',

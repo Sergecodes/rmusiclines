@@ -39,7 +39,7 @@ FILE_STORAGE_CLASS = import_string(settings.DEFAULT_FILE_STORAGE)
 # cache.
 #
 #
-# `{user.username}-unposted-photos` which is a list containing a dict with keys filename, base64_str,
+# `{user.username}-unposted-photos` which is a list containing a dict with keys filename, file_bytes,
 # mimetype. This list is a list of photos that have been uploaded but not yet posted under a post. 
 # 
 #

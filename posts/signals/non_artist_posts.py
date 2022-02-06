@@ -1,15 +1,11 @@
 from actstream import action
 from django.contrib.auth import get_user_model
 from django.db.models import F
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
-from posts.models.non_artist_posts.models import (
-    NonArtistPost, NonArtistPostDownload,
-    NonArtistPostComment, NonArtistPostCommentLike,
-    NonArtistPostBookmark, NonArtistPostRating
-)
+from posts.models.non_artist_posts.models import NonArtistPost, NonArtistPostComment
 from posts.utils import extract_hashtags, extract_mentions
 
 User = get_user_model()
@@ -23,7 +19,7 @@ def set_post_attributes(sender, instance, created, **kwargs):
     if not update_fields:
         update_fields = []
 
-    post = instance
+    post, poster = instance, instance.poster
 
     # If post is a parent post
     if post.is_parent:
@@ -40,181 +36,85 @@ def set_post_attributes(sender, instance, created, **kwargs):
         
         # Add action
         if created:
+            # Increment user repost count
+            poster.num_non_artist_posts = F('num_non_artist_posts') + 1
+            poster.save(update_fields=['num_non_artist_posts'])
+
             action.send(
-                post.poster,
+                poster,
                 verb=_('posted'),
                 target=post,
             )
 
-    # Else if post is just a simple repost
-    elif post.is_simple_repost:
-        if created:
-            parent_post = post.parent
-            parent_post.num_simple_reposts = F('num_simple_reposts') + 1
-            parent_post.save(update_fields=['num_simple_reposts'])
-
-            action.send(
-                post.poster,
-                verb=_('shared'),  # Poster reposted post (poster shared post)
-                target=post
-            )
-    
-    # Else if post is not a simple repost(is repost with body)
-    elif not post.is_simple_repost:
-        if created:
-            parent_post = post.parent
-            parent_post.num_non_simple_reposts = F('num_non_simple_reposts') + 1
-            parent_post.save(update_fields=['num_non_simple_reposts'])
-
-            action.send(
-                post.poster,
-                verb=_('reposted'), 
-                target=post
-            )
-
-
-@receiver(post_save, sender=NonArtistPost)
-def increment_user_post_count(sender, instance, created, **kwargs):
-    if created:
-        poster = instance.poster
-        poster.num_non_artist_posts = F('num_non_artist_posts') + 1
-        poster.save(update_fields=['num_non_artist_posts'])
-
-
-@receiver(post_delete, sender=NonArtistPost)
-def decrement_user_post_count(sender, instance, **kwargs):
-    poster = instance.poster
-    poster.num_non_artist_posts = F('num_non_artist_posts') - 1
-    poster.save(update_fields=['num_non_artist_posts'])
-
-
-@receiver(post_delete, sender=NonArtistPost)
-def decrement_post_repost_count(sender, instance: NonArtistPost, **kwargs):
-    """Decrement parent post's number of reposts if deleted post is a repost."""
-    post = instance
-
-    if not post.is_parent:
-        parent_post = post.parent
-
+    # If post is a repost
+    else:
         if post.is_simple_repost:
-            parent_post.num_simple_reposts = F('num_simple_reposts') - 1
-            parent_post.save(update_fields=['num_simple_reposts'])
+            if created:
+                parent_post = post.parent
+                parent_post.num_simple_reposts = F('num_simple_reposts') + 1
+                parent_post.save(update_fields=['num_simple_reposts'])
+
+                action.send(
+                    poster,
+                    verb=_('shared'),  # Poster reposted post (poster shared post)
+                    target=parent_post,
+                    action_object=post
+                )
+
         else:
-            parent_post.num_non_simple_reposts = F('num_non_simple_reposts') - 1
-            parent_post.save(update_fields=['num_non_simple_reposts'])
+            if created:
+                parent_post = post.parent
+                parent_post.num_non_simple_reposts = F('num_non_simple_reposts') + 1
+                parent_post.save(update_fields=['num_non_simple_reposts'])
+
+                action.send(
+                    poster,
+                    verb=_('reposted'), 
+                    target=parent_post,
+                    action_object=post
+                )
+
+        # Update user repost count
+        poster.num_non_artist_post_reposts = F('num_non_artist_post_reposts') + 1
+        poster.save(update_fields=['num_non_artist_post_reposts'])
+
+        # TODO Notify post owner of reposts...
+        
 
 
 @receiver(post_save, sender=NonArtistPostComment)
-def set_comment_mentioned_users(sender, instance, created, **kwargs):
+def set_comment_attributes(sender, instance: NonArtistPostComment, created, **kwargs):
     update_fields = kwargs.get('update_fields')
     if not update_fields:
         update_fields = []
 
+    comment = instance
+
     if created or 'body' in update_fields:
-        comment = instance
         comment.users_mentioned.set([
             User.objects.get(username=username) 
             for username in extract_mentions(comment.body)
         ])
 
-    # Add action
     if created:
-        action.send(
-            comment.poster,
-            verb='commented on',
-            target=comment.post_concerned,
-            action_object=comment
-        )
+        poster, post = comment.poster, comment.post_concerned
 
-
-@receiver(post_save, sender=NonArtistPostRating)
-def increment_post_rating_count(sender, instance, created, **kwargs):
-    if created:
-        post = instance.post
-        post.num_stars = F('num_stars') + instance.num_stars
-        post.save(update_fields=['num_stars']) 
+        # Increment post comment count
+        if comment.is_ancestor:
+            post.num_ancestor_comments = F('num_ancestor_comments') + 1
+            post.save(update_fields=['num_ancestor_comments'])
+            poster.num_ancestor_non_artist_post_comments = F('num_ancestor_non_artist_post_comments') + 1
+            poster.save(update_fields=['num_ancestor_non_artist_post_comments'])
+        else:
+            ancestor = comment.ancestor
+            ancestor.num_child_comments = F('num_child_comments') + 1
+            ancestor.save(update_fields=['num_child_comments'])
 
         # Add action
         action.send(
-            instance.rater, 
-            verb=_('rated'),
+            comment.poster,
+            verb='commented on',
             target=post,
-            action_object=instance
+            action_object=comment
         )
-
-
-@receiver(post_delete, sender=NonArtistPostRating)
-def decrement_post_rating_count(sender, instance, **kwargs):
-    post = instance.post
-    post.num_stars = F('num_stars') - instance.num_stars
-    post.save(update_fields=['num_stars']) 
-
-
-@receiver(post_save, sender=NonArtistPostBookmark)
-def increment_post_bookmark_count(sender, instance, created, **kwargs):
-    if created:
-        post = instance.post
-        post.num_bookmarks = F('num_bookmarks') + 1
-        post.save(update_fields=['num_bookmarks'])
-
-
-@receiver(post_delete, sender=NonArtistPostBookmark)
-def decrement_post_bookmark_count(sender, instance, **kwargs):
-    post = instance.post
-    post.num_bookmarks = F('num_bookmarks') - 1
-    post.save(update_fields=['num_bookmarks'])
-
-
-@receiver(post_save, sender=NonArtistPostDownload)
-def increment_post_download_count(sender, instance, created, **kwargs):
-    if created:
-        post = instance.post
-        post.num_downloads = F('num_downloads') + 1
-        post.save(update_fields=['num_downloads'])
-
-
-@receiver(post_delete, sender=NonArtistPostDownload)
-def decrement_post_download_count(sender, instance, **kwargs):
-    # Decrementing the num_downloads of a post doesn't make sense 
-    # since it has already been downloaded to "user's" storage.
-    pass
-
-
-@receiver(post_save, sender=NonArtistPostComment)
-def increment_post_comment_count(sender, instance, created, **kwargs):
-    if created:
-        if instance.is_parent:
-            post, poster = instance.post_concerned, instance.poster
-
-            post.num_parent_comments = F('num_parent_comments') + 1
-            post.save(update_fields=['num_parent_comments'])
-            poster.num_parent_non_artist_post_comments = F('num_parent_non_artist_post_comments') + 1
-            poster.save(update_fields=['num_parent_non_artist_post_comments'])
-
-
-@receiver(post_delete, sender=NonArtistPostComment)
-def decrement_post_comment_count(sender, instance, **kwargs):
-    if instance.is_parent:
-        post, poster = instance.post_concerned, instance.poster
-
-        post.num_parent_comments = F('num_parent_comments') - 1
-        post.save(update_fields=['num_parent_comments'])
-        poster.num_parent_non_artist_post_comments = F('num_parent_non_artist_post_comments') - 1
-        poster.save(update_fields=['num_parent_non_artist_post_comments'])
-
-
-@receiver(post_save, sender=NonArtistPostCommentLike)
-def increment_comment_like_count(sender, instance, created, **kwargs):
-    if created:
-        comment = instance.comment
-        comment.num_likes = F('num_likes') + 1
-        comment.save(update_fields=['num_likes'])
-
-
-@receiver(post_delete, sender=NonArtistPostCommentLike)
-def decrement_comment_like_count(sender, instance, **kwargs):
-    comment = instance.comment
-    comment.num_likes = F('num_likes') - 1
-    comment.save(update_fields=['num_likes'])
-
 

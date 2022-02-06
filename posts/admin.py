@@ -23,7 +23,7 @@ class PostAdmin(admin.ModelAdmin):
     # Add non-editable fields here so that they are displayed in the
     # admin panel
     readonly_fields = [
-        'num_reposts', 'num_parent_comments', 
+        'num_reposts', 'num_ancestor_comments', 
         'num_stars', 'created_on', 
     ]
 

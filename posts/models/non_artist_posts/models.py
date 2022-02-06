@@ -111,7 +111,7 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 
 	def save(self, *args, **kwargs):
 		self.clean()
-		super.save(*args, **kwargs)
+		super().save(*args, **kwargs)
 
 	class Meta:
 		db_table = 'posts\".\"non_artist_post'
@@ -237,7 +237,7 @@ class NonArtistPostMention(models.Model):
 		]
 
 
-class NonArtistPostRating(PostRating, UsesCustomSignal):
+class NonArtistPostRating(PostRating):
 	"""Non artist post and rater through model"""
 
 	post = models.ForeignKey(
@@ -272,7 +272,7 @@ class NonArtistPostRating(PostRating, UsesCustomSignal):
 		]
 
 
-class NonArtistPostBookmark(models.Model, UsesCustomSignal):
+class NonArtistPostBookmark(models.Model):
 	"""Non artist post and bookmarker through model"""
 
 	post = models.ForeignKey(
@@ -329,12 +329,26 @@ class NonArtistPostDownload(models.Model):
 class NonArtistPostComment(Comment, FlagMixin, UsesCustomSignal):
 	parent = models.ForeignKey(
 		'self',
-		on_delete=models.CASCADE,
+		on_delete=models.SET_NULL,
 		related_name='replies',
 		related_query_name='reply',
 		db_column='parent_comment_id',
 		# Is nullable since comment can be direct comment on post 
-		# hence it doesn't have a parent comment
+		# hence it doesn't have a parent comment or its parent is deleted;
+		# like in youtube comments, when a sub comment is deleted, its replies are
+		# not deleted
+		blank=True,
+		null=True
+	)
+	# Ancestor comment is direct comment on post
+	ancestor = models.ForeignKey(
+		'self',
+		on_delete=models.CASCADE,
+		related_name='child_comments',
+		related_query_name='child_comment',
+		db_column='ancestor_comment_id',
+		# Is nullable since comment can be direct comment on post 
+		# hence it doesn't have an ancestor comment
 		blank=True,
 		null=True
 	)
@@ -369,10 +383,10 @@ class NonArtistPostComment(Comment, FlagMixin, UsesCustomSignal):
 
 	class Meta: 
 		db_table = 'posts\".\"non_artist_post_comment'
-		ordering = ['-num_likes', '-created_on', '-num_replies']
+		ordering = ['-num_likes', '-created_on', '-num_child_comments']
 
 
-class NonArtistPostCommentLike(CommentLike, UsesCustomSignal):
+class NonArtistPostCommentLike(CommentLike):
 	comment = models.ForeignKey(
 		NonArtistPostComment,
 		db_column='non_artist_post_comment_id',

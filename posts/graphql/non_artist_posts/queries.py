@@ -25,7 +25,7 @@ class NonArtistPostNode(PKMixin, DjangoObjectType):
             'body': ['exact', 'icontains', 'istartswith'],
             'created_on': ['year__lt', 'year__gt'],
             'is_private': ['exact'],
-            'num_parent_comments': ['lt', 'gt'],
+            'num_ancestor_comments': ['lt', 'gt'],
             'num_stars': ['lt', 'gt'],
         }
         interfaces = [graphene.relay.Node, ]

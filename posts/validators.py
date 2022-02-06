@@ -1,7 +1,10 @@
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.template.defaultfilters import filesizeformat
 from django.utils.translation import gettext_lazy as _
+from graphql import GraphQLError
 
+from posts.constants import MAX_NUM_PHOTOS
 from .utils import get_video_duration, get_video_resolution
 
 '''
@@ -114,6 +117,31 @@ def validate_post_video_file(video_file):
                 'resolution': resolution
             }
         )
+
+
+def validate_cache_media(new_file, cache_photos_key, cache_video_key):
+    """
+    Validate cache media; cache can only contain either only a GIF or only a video or a given
+    maximum number of photos. 
+    This function verifies if we can go ahead and upload a media file and it is use in the file
+    upload mutations.
+    """
+    file_content_type = new_file.content_type
+
+    # Verify if video is present
+    # TODO
+
+    # Verify if GIF is present
+    # TODO
+    
+    # Validate photos length
+    photos_list = cache.get(cache_photos_key, [])
+    if len(photos_list) == MAX_NUM_PHOTOS:
+        raise GraphQLError(
+            _('Maximum number of photos attained'),
+            extensions={'code': 'max_photos_attained'}
+        )
+
 
 
 # def validate_post_photo(post_photo):

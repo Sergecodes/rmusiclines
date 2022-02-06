@@ -5,13 +5,34 @@ store them in database(post's photos) after the post has been validated)
 ( ' use relay mutations or convert all mutations to use relay
   ' use graphql_auth.decorators.login_required and not my verification_and_login_required
 )
+Other mutations:
+# User:
+    post, update post,
+    repost post (handle media uploads too)
+    
+download post, rate post, bookmark/unbookmark post, CUD on post comment,
+like comment, flag/unflag post, flag/unflag comment, follow/unfollow artist,
+follow/unfollow other users, block/unblock other users, subscribe to platform,
+deactivate account, request for account reactivation
+# Moderator
+delete flagged post / comment, flag user to admin, absolve post / comment,
+# Staff
+suspend user account for given period
+
+
+- read photos in cache and save them to post after post is saved.
+- db constraint; artist post and repost should have same artist_id
 - enable pfp and cover photo upload for user profile
+- enable video upload
 (appropriate size validators for pfp & cover photo, use params in post.validators file)
 - setup social authentication (django graphql social auth...)
 - test image upload via AWS
 - setup memcached for storing sessions and for general caching !! (performance reasons)
 - save post content/images in cache if user doesn't post it.
-# how to optimize/compress base64 strings...
+# To improve download_count query, during each new month, reset the download_count of all users
+# to zero, then increment normally when user downloads a post. If we wish, we can create another
+# table(model) to store the user's download count per month in each year so as to keep track of
+# user's past number of downloads.
 
 
 # add to site specification:

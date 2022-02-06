@@ -4,17 +4,20 @@ from graphql_auth.schema import UserQuery, MeQuery
 
 from accounts.graphql.artists.mutations import (
     CreateArtistMutation, PatchArtistMutation,
-    DeleteArtistMutation, FilterUpdateArtistMutation,
+    DeleteArtistMutation, FilterUpdateArtistMutation
 )
 from accounts.graphql.artists.queries import ArtistQuery
 from accounts.graphql.users.mutations import (
     AuthRelayMutation, PatchUserMutation, 
     ChangeUsernameMutation, ChangeEmailMutation,
-    VerifyNewEmailMutation
+    VerifyNewEmailMutation, 
 )
 from posts.graphql.artist_posts.mutations import (
-    CreateArtistPostMutation, PatchArtistPostMutation,
-    DeleteArtistPostMutation, RepostArtistPostMutation,
+    CreateArtistPostMutation, PatchArtistPostMutation, 
+    DeleteArtistPostMutation, RepostArtistPostMutation, 
+    RecordArtistPostDownloadMutation, 
+    BookmarkArtistPostMutation, DeleteArtistPostBookmarkMutation, 
+    RateArtistPostMutation, DeleteArtistPostRatingMutation,
 
 )
 from posts.graphql.non_artist_posts.queries import (
