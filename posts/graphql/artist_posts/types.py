@@ -4,7 +4,7 @@ from graphene_django import DjangoObjectType
 from core.utils import PKMixin
 from posts.models.artist_posts.models import (
     ArtistPost, ArtistPostBookmark, ArtistPostComment, ArtistPostDownload, 
-    ArtistPostRating,
+    ArtistPostRating, ArtistPostCommentLike, 
 
 )
 
@@ -45,5 +45,13 @@ class ArtistPostBookmarkNode(PKMixin, DjangoObjectType):
     class Meta:
         model = ArtistPostBookmark
         interfaces = [graphene.relay.Node, ]
+
+
+class ArtistPostCommentLikeNode(PKMixin, DjangoObjectType):
+    class Meta:
+        model = ArtistPostCommentLike
+        interfaces = [graphene.relay.Node, ]
+
+
 
 

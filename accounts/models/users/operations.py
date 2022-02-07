@@ -10,7 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from accounts.constants import USERNAME_CHANGE_WAIT_PERIOD
 from accounts.models.artists.models import ArtistFollow
 from accounts.utils import get_user, get_artist
-from flagging.models.models import Flag
+from flagging.models.models import Flag, FlagInstance
 from posts.models.artist_posts.models import (
     ArtistPostBookmark, ArtistPostCommentLike, 
     ArtistPostDownload, ArtistPostRating, 
@@ -37,6 +37,16 @@ class UserOperations:
 
         # Update graphql_auth status
         self.status.verified = False
+        self.status.save(update_fields=['verified'])
+
+    def reactivate(self):
+        # TODO conditions/caveats for account reactivation
+        self.deactivated_on = None
+        self.is_active = True
+        self.save(update_fields=['is_active', 'deactivated_on'])
+
+        # Update graphql_auth status
+        self.status.verified = True
         self.status.save(update_fields=['verified'])
 
     def change_username(self, new_username: str):
@@ -80,6 +90,13 @@ class UserOperations:
             downloaded_on__month=month,
             downloaded_on__year=year
         ).count()
+
+    def flag_object(self, obj, reason):
+        """`reason` has to be a valid reason in FlagInstance.FLAG_REASONS"""
+        return FlagInstance.objects.create_flag(self, obj.flag, reason)['flag_instance']
+
+    def unflag_object(self, obj):
+        return FlagInstance.objects.delete_flag(self, obj.flag)['flag_instance_id']
 
     def absolve_object(self, obj):
         """
@@ -141,6 +158,8 @@ class UserOperations:
         # Add action
         follow(self, other)
 
+        # TODO Notify user
+
         return follow_obj
 
     def unfollow_user(self, other_or_id):
@@ -169,8 +188,9 @@ class UserOperations:
         other = get_user(other_or_id)
         block_obj = UserBlocking.objects.create(blocker=self, blocked=other)
 
-        # Unfollow user before blocking
-        self.unfollow_user(other)
+        # Unfollow user if user is following user
+        if other in self.following.all():
+            self.unfollow_user(other)
 
         return block_obj
 
@@ -461,7 +481,7 @@ class UserOperations:
         bookmark_obj = ArtistPostBookmark.objects.get(post=post, rater=self)
         bookmark_obj_id = bookmark_obj.id
         bookmark_obj.delete()
-        
+
         post.num_bookmarks = F('num_bookmarks') - 1
         post.save(update_fields=['num_bookmarks'])
 

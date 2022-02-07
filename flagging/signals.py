@@ -56,8 +56,6 @@ def flagged(sender, instance, created, **kwargs):
 					category=Notification.REPORTED
 				)
 
-			return
-
 		# If post wasn't deleted and number of flags reaches auto deletion threshold,
 		# delete post.
 		if flag_count == AUTO_DELETE_FLAGS_COUNT:
@@ -72,7 +70,7 @@ def flagged(sender, instance, created, **kwargs):
 				recipient=poster, 
 				verb=_(
 					"One of your contents has been deleted because it was considered "
-					"inappropriate by many users. Please try to not post such content."
+					"inappropriate by many users. Please try to not post such content in the future."
 				),
 				category=Notification.FLAGGED_CONTENT_DELETED
 			)

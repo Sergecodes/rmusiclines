@@ -117,19 +117,19 @@ CREATE TRIGGER verify_username_change
     EXECUTE FUNCTION verify_username_change();
 
 
-7. Trigger on posts.artist_post and posts.non_artist_post to ensure pinned comment is a parent comment
+7. Trigger on posts.artist_post and posts.non_artist_post to ensure pinned comment is ancestor comment
 CREATE OR REPLACE FUNCTION pin_artist_post_comment() RETURNS trigger AS $pin_artist_post_comment$
     BEGIN 
         IF (SELECT count(*) FROM posts.artist_post_comment WHERE id=NEW.pinned_comment_id
-        AND is_parent=TRUE) = 1 THEN
+        AND is_ancestor=TRUE) = 1 THEN
             RETURN NEW;
         ELSE
-            RAISE EXCEPTION 'You can only pin a parent comment';
+            RAISE EXCEPTION 'You can only pin an ancestor comment';
         END IF;
     END;
     $pin_artist_post_comment$ LANGUAGE plpgsql;
 
-CREATE TRIGGER pin_artist_post_comment 
+CREATE OR REPLACE TRIGGER pin_artist_post_comment 
 BEFORE INSERT OR UPDATE OF pinned_comment_id ON posts.artist_post
 FOR EACH ROW 
 WHEN (NEW.pinned_comment_id IS NOT NULL)
@@ -140,15 +140,15 @@ EXECUTE FUNCTION pin_artist_post_comment();
 CREATE OR REPLACE FUNCTION pin_non_artist_post_comment() RETURNS trigger AS $pin_non_artist_post_comment$
     BEGIN 
         IF (SELECT count(*) FROM posts.non_artist_post_comment WHERE id=NEW.pinned_comment_id
-        AND is_parent=TRUE) = 1 THEN
+        AND is_ancestor=TRUE) = 1 THEN
             RETURN NEW;
         ELSE
-            RAISE EXCEPTION 'You can only pin a parent comment';
+            RAISE EXCEPTION 'You can only pin an ancestor comment';
         END IF;
     END;
     $pin_non_artist_post_comment$ LANGUAGE plpgsql;
 
-CREATE TRIGGER pin_non_artist_post_comment 
+CREATE OR REPLACE TRIGGER pin_non_artist_post_comment 
 BEFORE INSERT OR UPDATE OF pinned_comment_id ON posts.non_artist_post
 FOR EACH ROW 
 WHEN (NEW.pinned_comment_id IS NOT NULL)

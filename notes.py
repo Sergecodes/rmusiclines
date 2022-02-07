@@ -11,7 +11,7 @@ Other mutations:
     repost post (handle media uploads too)
     
 download post, rate post, bookmark/unbookmark post, CUD on post comment,
-like comment, flag/unflag post, flag/unflag comment, follow/unfollow artist,
+like comment, reply to comment, flag/unflag post, flag/unflag comment, follow/unfollow artist,
 follow/unfollow other users, block/unblock other users, subscribe to platform,
 deactivate account, request for account reactivation
 # Moderator

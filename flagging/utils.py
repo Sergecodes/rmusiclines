@@ -42,9 +42,7 @@ def process_flagging_request(*, user, model_obj, data: dict):
         elif deleted:
             response['msg'] = _('The content has been unflagged successfully.')
 
-        response.update({
-            'status': 1
-        })
+        response.update({'status': 1})
 
     except ValidationError as e:
         response.update({

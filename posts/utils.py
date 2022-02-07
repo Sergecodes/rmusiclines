@@ -22,6 +22,7 @@ def extract_mentions(text)-> list:
     Remember usernames should be between {1,15} characters and alphanumeric(\w)
     """
     INVALID_USERNAME_LENGTH_THRESHOLD = 16
+    
     # Get strings of length 16 too so that if any username of length 16 is obtained
     # we know it is invalid
     result = re.findall(r"(^|[^@\w])@(\w{1,16})", text, re.UNICODE)

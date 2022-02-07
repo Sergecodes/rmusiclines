@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q
@@ -69,13 +68,6 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		related_query_name='rated_non_artist_post',
 		blank=True
 	)
-	# reposters = models.ManyToManyField(
-	# 	settings.AUTH_USER_MODEL,
-	# 	through='NonArtistPostRepost',
-	# 	related_name='reposted_non_artist_posts',
-	# 	related_query_name='reposted_non_artist_post',
-	# 	blank=True
-	# )
 	bookmarkers = models.ManyToManyField(
 		settings.AUTH_USER_MODEL,
 		through='NonArtistPostBookmark',
@@ -91,23 +83,8 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		blank=True
 	)
 
-	@property
-	def parent_comments(self):
-		return self.overall_comments.filter(is_parent=True)
-
-	@property
-	def get_tags(self)-> list:
-		"""Return list of hashtags. Used in the graphql api to get tags of a post."""
-		return self.hashtags.all()
-
 	def clean(self):
-		# Ensure pinned comment is a parent comment
-		pinned_comment = self.pinned_comment
-		if pinned_comment and not pinned_comment.is_parent:
-			raise ValidationError(
-				_('You can only pin a parent comment'),
-				code='not_parent_comment'
-			)
+		super().clean()
 
 	def save(self, *args, **kwargs):
 		self.clean()

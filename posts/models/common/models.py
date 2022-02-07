@@ -92,6 +92,16 @@ class Post(models.Model, PostOperations):
 		return True if self.parent is None else False
 
 	@property
+	def ancestor_comments(self):
+		"""Get comments that are comments to post(ancestors) and not replies"""
+		return self.overall_comments.filter(ancestor__isnull=True)
+
+	@property
+	def non_simple_reposts(self):
+		"""Get reposts that have a body(that are not just reposts)"""
+		return self.reposts.filter(is_simple_repost=False)
+
+	@property
 	def num_reposts(self):
 		return self.num_simple_reposts + self.num_non_simple_reposts
 	
@@ -106,13 +116,27 @@ class Post(models.Model, PostOperations):
 	def has_been_edited(self):
 		"""Returns whether a post has been edited after its creation or not"""
 		return self.created_on != self.last_updated_on
+	
+	@property
+	def get_tags(self)-> list:
+		"""Return list of hashtags. Used in the graphql api to get tags of a post."""
+		return self.hashtags.all()
 
 	def clean(self):
+		# Validate post length
 		if len(self.body) > MAX_POST_LENGTH:
 			raise ValidationError(
 				_('Post should have at most %(max_post_length)s characters.'),
 				code='invalid',
 				params={'max_post_length': MAX_POST_LENGTH}
+			)
+
+		# Ensure pinned comment is an ancestor comment
+		pinned_comment = self.pinned_comment
+		if pinned_comment and not pinned_comment.is_ancestor:
+			raise ValidationError(
+				_('You can only pin an ancestor comment'),
+				code='not_ancestor_comment'
 			)
 
 	def save(self, *args, **kwargs):
@@ -202,7 +226,7 @@ class Comment(models.Model):
 	created_on = models.DateTimeField(auto_now_add=True, editable=False)
 	num_likes = models.PositiveIntegerField(default=0, editable=False)
 	# If comment is an ancestor, this will hold its number of child comments(its number
-	# of descendant comments). Else it will be null
+	# of descendant comments - by default 0). Else it will be null
 	num_child_comments = models.PositiveIntegerField(blank=True, null=True, editable=False)
 	
 	def __str__(self):
@@ -231,10 +255,8 @@ class Comment(models.Model):
 		return True
 
 	def clean(self):
-		"""
-		Max length of comment body should be 1000 chars. We don't want the user to abuse an
-		unlimited field.
-		"""
+		# Max length of comment body should be 1000 chars; 
+		# we don't want the user to abuse an unlimited field.
 		if len(self.body) > MAX_COMMENT_LENGTH:
 			raise ValidationError(
 				_('Comments should be less than %(max_length)s characters'),

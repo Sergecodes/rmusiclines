@@ -92,29 +92,8 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		blank=True
 	)
 
-	@property
-	def parent_comments(self):
-		"""Get comments that are comments to post(parents) and not replies"""
-		return self.overall_comments.filter(parent__isnull=True)
-
-	@property
-	def non_simple_reposts(self):
-		"""Get reposts that have a body(that are not just reposts)"""
-		return self.reposts.filter(is_simple_repost=False)
-
-	@property
-	def get_tags(self)-> list:
-		"""Return list of hashtags. Used in the graphql api to get tags of a post."""
-		return self.hashtags.all()
-
 	def clean(self):
-		# Ensure pinned comment is a parent comment
-		pinned_comment = self.pinned_comment
-		if pinned_comment and not pinned_comment.is_parent:
-			raise ValidationError(
-				_('You can only pin a parent comment'),
-				code='not_parent_comment'
-			)
+		super().clean()
 
 		# Ensure post and parent concern the same artist
 		if self.parent.artist_id != self.artist_id:

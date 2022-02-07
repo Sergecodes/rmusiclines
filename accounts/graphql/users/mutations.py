@@ -1,15 +1,21 @@
+import datetime
 import graphene
 from django.contrib.auth import get_user_model, logout
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from graphene_django_cud.mutations import DjangoPatchMutation
+from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
 from graphql_auth import relay
 from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
+from graphql_auth.decorators import login_required
 from graphql_auth.schema import UserNode
 
 from accounts.mixins import SendNewEmailActivationMixin, VerifyNewEmailMixin
+from accounts.models.users.models import Suspension
 from accounts.validators import UserUsernameValidator
+from flagging.graphql.types import *
+from flagging.models.models import FlagInstance
 from core.decorators import verification_and_login_required
 # Import(implicitly register) all types
 from .types import *
@@ -17,7 +23,7 @@ from .types import *
 User = get_user_model()
 
 
-class PatchUserMutation(DjangoPatchMutation):
+class PatchUser(DjangoPatchMutation):
     class Meta:
         model = User
         login_required = True
@@ -50,7 +56,7 @@ class PatchUserMutation(DjangoPatchMutation):
             )
 
 
-class ChangeUsernameMutation(graphene.Mutation, Output):
+class ChangeUsername(graphene.Mutation, Output):
     """Change username of current logged in user(if they are permitted to change it)"""
 
     class Arguments:
@@ -81,10 +87,10 @@ class ChangeUsernameMutation(graphene.Mutation, Output):
                 extensions={'code': err.code}
             )
 
-        return ChangeUsernameMutation(user=user, success=True)
+        return cls(user=user, success=True)
 
 
-class ChangeEmailMutation(
+class ChangeEmail(
     RelayMutationMixin, DynamicInputMixin, 
     SendNewEmailActivationMixin, graphene.ClientIDMutation
 ):
@@ -92,12 +98,175 @@ class ChangeEmailMutation(
     _required_inputs = ['new_email', 'password']
 
 
-class VerifyNewEmailMutation(
+class VerifyNewEmail(
     RelayMutationMixin, DynamicInputMixin, 
     VerifyNewEmailMixin, graphene.ClientIDMutation
 ):
     __doc__ = VerifyNewEmailMixin.__doc__
     _required_inputs = ["token"]
+
+
+class FollowUser(relay.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    user_follow = graphene.Field(UserFollowNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        follow_obj = user.follow_user(disambiguate_id(input['user_id']))
+
+        return cls(user_follow=follow_obj)
+
+
+class UnfollowUser(relay.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    follow_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        deleted_obj_id = user.unfollow_user(disambiguate_id(input['user_id']))
+
+        return cls(deleted=True, follow_id=deleted_obj_id)
+
+
+class BlockUser(relay.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    user_block = graphene.Field(UserBlockingNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        block_obj = user.block_user(disambiguate_id(input['user_id']))
+
+        return cls(user_block=block_obj)
+
+
+class UnblockUser(relay.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    block_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        deleted_obj_id = user.unblock_user(disambiguate_id(input['user_id']))
+
+        return cls(deleted=True, block_id=deleted_obj_id)
+
+
+class DeactivateAccount(relay.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    success = graphene.Boolean()
+    account = graphene.Field(UserNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        user.deactivate()
+
+        # Refresh from db to get updated records
+        user.refresh_from_db()
+        return cls(success=True, account=user)
+
+
+class ReactivateAccount(relay.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    success = graphene.Boolean()
+    account = graphene.Field(UserNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        user.reactivate()
+
+        # Refresh from db to get updated records
+        user.refresh_from_db()
+        return cls(success=True, account=user)
+
+
+class FlagUser(relay.ClientIDMutation):
+    class Input:
+        flag_user_id = graphene.ID(required=True)
+        reason = graphene.Enum(FlagInstance.reasons)
+
+    flag_instance = graphene.Field(FlagInstanceNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user, flag_user_id = info.context.user, disambiguate_id(input['flag_user_id'])
+
+        # Only moderator can flag user account
+        if not user.is_mod:
+            raise GraphQLError(
+                _("You can not flag a user's account"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        flag_instance_obj = user.flag_object(User.active_users.get(id=flag_user_id), input['reason'])
+
+        # TODO Notify staff
+
+
+        return cls(flag_instance=flag_instance_obj)
+
+
+class SuspendUser(relay.ClientIDMutation):
+    class Input:
+        suspend_user_id = graphene.ID(required=True)
+        duration_in_days = graphene.Int()
+        reason = graphene.String()
+
+    suspension = graphene.Field(SuspensionNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        current_user, suspend_user_id = info.context.user, disambiguate_id(input['suspend_user_id'])
+        
+        # Only staff can suspend users
+        if not current_user.is_staff:
+            raise GraphQLError(
+                _("You are not permitted to suspend a user's account"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        suspension_obj = Suspension(
+            suspender=current_user,
+            user=User.active_users.get(id=suspend_user_id),
+            reason=input.get('reason', '')
+        )
+
+        if num_days := input.get('duration_in_days'):
+            suspension_obj.duration = datetime.timedelta(days=num_days)
+        
+        suspension_obj.save()
+        return cls(suspension=suspension_obj)
+
+
+class Subscribe(relay.ClientIDMutation):
+    """Subscribe to the platform(become a premium user)"""
+    pass
 
 
 class AuthRelayMutation(graphene.ObjectType):

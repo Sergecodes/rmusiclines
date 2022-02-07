@@ -1,7 +1,11 @@
 import graphene
 from django.contrib.auth import get_user_model
+from graphene_django import DjangoObjectType
 from graphql_auth.schema import UserNode as BaseUserNode
 from graphql_auth.settings import graphql_auth_settings
+
+from accounts.models.users.models import UserBlocking, UserFollow, Suspension
+from core.utils import PKMixin
 
 User = get_user_model()
 
@@ -17,6 +21,30 @@ class UserAccountNode(BaseUserNode):
         filter_fields = graphql_auth_settings.USER_NODE_FILTER_FIELDS
         exclude = graphql_auth_settings.USER_NODE_EXCLUDE_FIELDS
         interfaces = (graphene.relay.Node, )
+
+
+class UserFollowNode(PKMixin, DjangoObjectType):
+    class Meta:
+        model = UserFollow
+        interfaces = [graphene.relay.Node, ]
+
+
+class UserBlockingNode(PKMixin, DjangoObjectType):
+    class Meta:
+        model = UserBlocking
+        interfaces = [graphene.relay.Node, ]
+
+
+class SuspensionNode(PKMixin, DjangoObjectType):
+
+    # Permit conversion of timedelta 
+    def resolve_duration(self, info):
+        return self.duration.total_seconds()
+
+    class Meta:
+        model = Suspension
+        interfaces = [graphene.relay.Node, ]
+
 
 
 

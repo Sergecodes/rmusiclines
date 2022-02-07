@@ -443,6 +443,13 @@ class UserFollow(models.Model):
 class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
 
     # Remember only staff can add suspension
+    suspender = models.ForeignKey(
+        User, 
+        db_column='suspender_user_id', 
+        on_delete=models.CASCADE,
+        related_name='suspended_users',
+        related_query_name='suspension'
+    )
     user = models.ForeignKey(
         User, 
         db_column='user_id', 
@@ -467,11 +474,11 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
         return self.over_on - timezone.now()
 
     def clean(self):
-        # Superuser can't be suspended
-        if self.user.is_superuser:
+        # Staff can't be suspended
+        if self.user.is_staff:
             raise ValidationError(
-                _("You can't suspend a superuser."),
-                code="can't_suspend_superuser"
+                _("You can't suspend a staff."),
+                code="can't_suspend_staff"
             )
 
     def save(self, *args, **kwargs):
@@ -479,6 +486,7 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
 
         if not self.pk:
             self.over_on = self.given_on + self.period
+
         super().save(*args, **kwargs)
 
     class Meta:

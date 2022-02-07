@@ -54,8 +54,6 @@ class FlagInstanceManager(models.Manager):
                 return reason
             else:
                 raise err
-
-
         except (ValueError, TypeError):
             raise err
 
@@ -82,9 +80,8 @@ class FlagInstanceManager(models.Manager):
 
         cleaned_reason = self._clean_reason(reason)
         try:
-            self.create(flag=flag, user=user, reason=cleaned_reason)
-            return {'created': True}
-
+            flag_instance = self.create(flag=flag, user=user, reason=cleaned_reason)
+            return {'created': True, 'flag_instance': flag_instance}
         except IntegrityError:
             raise ValidationError(
                 _('This content has already been flagged by the user (%(user)s)'),
@@ -98,9 +95,10 @@ class FlagInstanceManager(models.Manager):
         Returns a dict {'deleted': bool} or raises ValidationError
         """
         try:
-            self.get(user=user, flag=flag).delete()
-            return {'deleted': True}
-
+            flag_instance = self.get(user=user, flag=flag)
+            instance_id = flag_instance.id
+            flag_instance.delete()
+            return {'deleted': True, 'flag_instance_id': instance_id}
         except self.model.DoesNotExist:
             raise ValidationError(
                 _('This content has not been flagged by the user (%(user)s)'),

@@ -1,23 +1,23 @@
 import graphene
+from graphene import relay
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
-from graphene_django_cud.mutations import (
-    DjangoCreateMutation, DjangoPatchMutation,
-    DjangoDeleteMutation,
-)
+from graphene_django_cud.mutations import DjangoCreateMutation, DjangoPatchMutation
 from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
 from graphql_auth.decorators import login_required
 
 from core.constants import FILE_STORAGE_CLASS
-from posts.constants import POST_CAN_EDIT_TIME_LIMIT, FORM_AND_UPLOAD_DIR
+from flagging.graphql.types import *
+from flagging.models.models import FlagInstance
+from posts.constants import (
+    COMMENT_CAN_EDIT_TIME_LIMIT, POST_CAN_EDIT_TIME_LIMIT, 
+    FORM_AND_UPLOAD_DIR
+)
 from posts.models.artist_posts.models import (
     ArtistPost, ArtistPostComment, ArtistPostPhoto
 )
-# Import types
 from ..common.types import *
 from ..common.utils import validate_comment
 from .types import *
@@ -25,7 +25,7 @@ from .types import *
 STORAGE = FILE_STORAGE_CLASS()
 
 
-class CreateArtistPostMutation(DjangoCreateMutation):
+class CreateArtistPost(DjangoCreateMutation):
     class Meta:
         model = ArtistPost
         # If user can login(is_active), then his account status is verified;
@@ -103,7 +103,7 @@ class CreateArtistPostMutation(DjangoCreateMutation):
         return cls(**return_data)
 
 
-class PatchArtistPostMutation(DjangoPatchMutation):
+class PatchArtistPost(DjangoPatchMutation):
     class Meta:
         model = ArtistPost
         login_required = True
@@ -130,7 +130,7 @@ class PatchArtistPostMutation(DjangoPatchMutation):
             raise GraphQLError(err, extensions={'code': 'not_editable'})
         
 
-class DeleteArtistPostMutation(graphene.relay.ClientIDMutation):
+class DeleteArtistPost(relay.ClientIDMutation):
     class Input:
         post_id = graphene.ID(required=True)
 
@@ -145,10 +145,10 @@ class DeleteArtistPostMutation(graphene.relay.ClientIDMutation):
 
         # post_id will(should) always be equal to deleted_obj_id
 
-        return DeleteArtistPostMutation(deleted=True, post_id=deleted_obj_id)
+        return cls(deleted=True, post_id=deleted_obj_id)
     
 
-class RepostArtistPostMutation(graphene.relay.ClientIDMutation):
+class RepostArtistPost(relay.ClientIDMutation):
 
     class Input:
         parent_post_id = graphene.ID(required=True)
@@ -201,12 +201,12 @@ class RepostArtistPostMutation(graphene.relay.ClientIDMutation):
             repost.pinned_comment = comment
             repost.save(update_fields=['pinned_comment'])
             
-        return RepostArtistPostMutation(repost=repost)
+        return cls(repost=repost)
 
 
 # I can't use django-cud's create mutation because apparently it has
 # a problem when the db_column is set using a name other than the {field_name}_id
-class RecordArtistPostDownloadMutation(graphene.relay.ClientIDMutation):
+class RecordArtistPostDownload(relay.ClientIDMutation):
     class Input:
         post_id = graphene.ID(required=True)
 
@@ -218,10 +218,10 @@ class RecordArtistPostDownloadMutation(graphene.relay.ClientIDMutation):
         user = info.context.user
         download_obj = user.record_artist_post_download(disambiguate_id(input['post_id']))
 
-        return RecordArtistPostDownloadMutation(post_download=download_obj)
+        return cls(post_download=download_obj)
 
 
-class BookmarkArtistPostMutation(graphene.relay.ClientIDMutation):
+class BookmarkArtistPost(relay.ClientIDMutation):
     class Input:
         post_id = graphene.ID(required=True)
 
@@ -233,10 +233,10 @@ class BookmarkArtistPostMutation(graphene.relay.ClientIDMutation):
         user = info.context.user
         bookmark_obj = user.bookmark_artist_post(disambiguate_id(input['post_id']))
 
-        return BookmarkArtistPostMutation(post_bookmark=bookmark_obj)
+        return cls(post_bookmark=bookmark_obj)
 
 
-class DeleteArtistPostBookmarkMutation(graphene.relay.ClientIDMutation):
+class RemoveArtistPostBookmark(relay.ClientIDMutation):
     class Input:
         post_id = graphene.ID(required=True)
 
@@ -249,10 +249,10 @@ class DeleteArtistPostBookmarkMutation(graphene.relay.ClientIDMutation):
         post_id = disambiguate_id(input['post_id'])
         deleted_obj_id = info.context.user.remove_artist_post_bookmark(post_id)
 
-        return DeleteArtistPostMutation(deleted=True, bookmark_id=deleted_obj_id)
+        return cls(deleted=True, bookmark_id=deleted_obj_id)
     
 
-class RateArtistPostMutation(graphene.relay.ClientIDMutation):
+class RateArtistPost(relay.ClientIDMutation):
     class Input:
         post_id = graphene.ID(required=True)
         num_stars = RATING_STARS(required=True)
@@ -265,10 +265,10 @@ class RateArtistPostMutation(graphene.relay.ClientIDMutation):
         user = info.context.user
         created_obj = user.rate_artist_post(disambiguate_id(input['post_id']), input['num_stars'])
 
-        return RateArtistPostMutation(post_rating=created_obj)
+        return cls(post_rating=created_obj)
 
 
-class DeleteArtistPostRatingMutation(graphene.relay.ClientIDMutation):
+class RemoveArtistPostRating(relay.ClientIDMutation):
     class Input:
         post_id = graphene.ID(required=True)
 
@@ -281,6 +281,255 @@ class DeleteArtistPostRatingMutation(graphene.relay.ClientIDMutation):
         user = info.context.user
         deleted_obj_id = user.remove_artist_post_rating(disambiguate_id(input['post_id']))
 
-        return DeleteArtistPostMutation(deleted=True, rating_id=deleted_obj_id)
+        return cls(deleted=True, rating_id=deleted_obj_id)
+
+
+class CreateArtistPostAncestorComment(relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+        body = graphene.String(required=True)
+
+    comment = graphene.Field(ArtistPostCommentNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        # Validate comment 
+        comment_body = input['body']
+        validate_comment(comment_body)
+
+        user, post_id = info.context.user, disambiguate_id(input['post_id'])
+        comment = ArtistPostComment.objects.create(
+            post_concerned_id=post_id,
+            body=comment_body,
+            poster=user,
+            num_child_comments=0
+        )
+
+        return cls(comment=comment)
+
+
+class PatchArtistPostComment(DjangoPatchMutation):
+    class Meta:
+        model = ArtistPostComment
+        login_required = True
+        only_fields = ('body', )
+
+    @classmethod
+    def check_permissions(cls, root, info, input, id, obj: ArtistPostComment):
+        """Only poster of post can edit the post and post should be editable"""
+
+        # Only poster can edit post
+        print(info.context.user)
+        print(obj.poster)
+        if info.context.user.id != obj.poster_id:
+            raise GraphQLError(
+                _("Only poster can edit post"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        # Comment should be editable
+        if not obj.can_be_edited:
+            err = _("You can no longer edit a comment after %(can_edit_minutes)d minutes of its creation") \
+                % {'can_edit_minutes': COMMENT_CAN_EDIT_TIME_LIMIT.seconds // 60}
+
+            raise GraphQLError(err, extensions={'code': 'not_editable'})
+
+
+class DeleteArtistPostComment(relay.ClientIDMutation):
+    class Input:
+        comment_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    comment_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        comment_id = disambiguate_id(input['comment_id'])
+        deleted_obj_id = info.context.user.delete_artist_post_comment(comment_id)
+
+        return cls(deleted=True, comment_id=deleted_obj_id)
+
+
+class ReplyToArtistPostComment(relay.ClientIDMutation):
+    class Input:
+        parent_comment_id = graphene.ID(required=True)
+        reply_body = graphene.String(required=True)
+
+    reply = graphene.Field(ArtistPostCommentNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        # Validate comment 
+        reply_body = input['reply_body']
+        validate_comment(reply_body)
+
+        user, parent_comment_id = info.context.user, disambiguate_id(input['parent_comment_id'])
+        parent_comment = ArtistPostComment.objects.get(id=parent_comment_id)
+
+        reply = ArtistPostComment(
+            parent=parent_comment,
+            post_concerned_id=parent_comment.post_concerned_id,
+            body=reply_body,
+            poster=user
+        )
+
+        # If parent comment is ancestor, set ancestor to parent comment 
+        if parent_comment.is_ancestor:
+            reply.ancestor = parent_comment
+        else:
+            reply.ancestor_id = parent_comment.ancestor_id
+        
+        reply.save()
+        return cls(reply=reply)
+
+
+class LikeArtistPostComment(relay.ClientIDMutation):
+    class Input:
+        comment_id = graphene.ID(required=True)
+
+    comment_like = graphene.Field(ArtistPostCommentLikeNode)
+    
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        created_obj = user.add_artist_post_comment_like(disambiguate_id(input['comment_id']))
+
+        return cls(comment_like=created_obj)
+
+
+class RemoveArtistPostCommentLike(relay.ClientIDMutation):
+    class Input:
+        comment_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    like_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user = info.context.user
+        deleted_obj_id = user.remove_artist_post_comment_like(disambiguate_id(input['comment_id']))
+
+        return cls(deleted=True, like_id=deleted_obj_id)
+
+
+class FlagArtistPost(relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+        reason = graphene.Enum(FlagInstance.reasons)
+
+    flag_instance = graphene.Field(FlagInstanceNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user, post_id = info.context.user, disambiguate_id(input['post_id'])
+        post = ArtistPost.objects.get(id=post_id)
+        flag_instance_obj = user.flag_object(post, input['reason'])
+
+        return cls(flag_instance=flag_instance_obj)
+
+
+class UnflagArtistPost(relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    flag_instance_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user, post_id = info.context.user, disambiguate_id(input['post_id'])
+        post = ArtistPost.objects.get(id=post_id)
+        deleted_obj_id = user.unflag_object(post)
+
+        return cls(deleted=True, flag_instance_id=deleted_obj_id)
+
+
+class FlagArtistPostComment(relay.ClientIDMutation):
+    class Input:
+        comment_id = graphene.ID(required=True)
+        reason = graphene.Enum(FlagInstance.reasons)
+
+    flag_instance = graphene.Field(FlagInstanceNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user, comment_id = info.context.user, disambiguate_id(input['comment_id'])
+        comment = ArtistPostComment.objects.get(id=comment_id)
+        flag_instance_obj = user.flag_object(comment, input['reason'])
+
+        return cls(flag_instance=flag_instance_obj)
+
+
+class UnflagArtistPostComment(relay.ClientIDMutation):
+    class Input:
+        comment_id = graphene.ID(required=True)
+
+    deleted = graphene.Boolean()
+    flag_instance_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user, comment_id = info.context.user, disambiguate_id(input['comment_id'])
+        comment = ArtistPostComment.objects.get(id=comment_id)
+        deleted_obj_id = user.unflag_object(comment)
+
+        return cls(deleted=True, flag_instance_id=deleted_obj_id)
+
+
+class AbsolveArtistPost(relay.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    flag = graphene.Field(FlagNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user, post_id = info.context.user, disambiguate_id(input['post_id'])
+        
+        # Only moderator can absolve content
+        if not user.is_mod:
+            raise GraphQLError(
+                _("Only moderators can absolve posts"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        post = ArtistPost.objects.get(id=post_id)
+        user.absolve_object(post)
+
+        return cls(flag=post.flag)
+
+
+class AbsolveArtistPostComment(relay.ClientIDMutation):
+    class Input:
+        comment_id = graphene.ID(required=True)
+
+    flag = graphene.Field(FlagNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        user, comment_id = info.context.user, disambiguate_id(input['comment_id'])
+        
+        # Only moderator can absolve content
+        if not user.is_mod:
+            raise GraphQLError(
+                _("Only moderators can absolve posts"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        comment = ArtistPostComment.objects.get(id=comment_id)
+        user.absolve_object(comment)
+
+        return cls(flag=comment.flag)
 
 
