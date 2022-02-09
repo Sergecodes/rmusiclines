@@ -1,22 +1,14 @@
-'''
+import graphene
+# import graphene_django_optimizer as gql_optimizer
+# from graphene import relay
+# from graphene_django.filter import DjangoFilterConnectionField
+# from graphene_django_cud.util import disambiguate_id
 
-class UserQuery(graphene.ObjectType):
-    all_users = graphene.List(UserType)
-    user_by_username = graphene.Field(
-        UserType, 
-        username=graphene.String(required=True)
-    )
+# from .types import UserAccountNode
 
-    def resolve_all_users(root, info):
-        return User.objects.select_related(
-            'pinned_non_artist_post',
-            'pinned_artist_post'
-        ).all()
 
-    def resolve_user_by_username(root, info, username):
-        try:
-            return User.objects.get(username=username)
-        except User.DoesNotExist:
-            return None
+class UserAccountQuery(graphene.ObjectType):
+    """This will be used to add other resolvers to that provided by graphql_auth"""
 
-'''
+    pass
+

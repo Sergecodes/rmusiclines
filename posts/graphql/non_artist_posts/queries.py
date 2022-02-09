@@ -2,7 +2,7 @@ import graphene
 from graphene_django import DjangoObjectType
 from graphene_django.filter import DjangoFilterConnectionField
 
-from core.utils import PKMixin
+from core.mixins import PKMixin
 from posts.models.non_artist_posts.models import (
     NonArtistPost, NonArtistPostComment
 )
@@ -11,7 +11,6 @@ from posts.models.non_artist_posts.models import (
 class NonArtistPostType(DjangoObjectType):
     class Meta:
         model = NonArtistPost
-        exclude = ['downloaders']
 
 
 # Graphene will automatically map the NonArtistPost model's fields onto the NonArtistPostNode.
@@ -19,8 +18,6 @@ class NonArtistPostType(DjangoObjectType):
 class NonArtistPostNode(PKMixin, DjangoObjectType):
     class Meta:
         model = NonArtistPost
-        exclude = ['downloaders']
-        filter_fields = ['body']
         filter_fields = {
             'body': ['exact', 'icontains', 'istartswith'],
             'created_on': ['year__lt', 'year__gt'],

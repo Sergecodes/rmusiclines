@@ -11,7 +11,7 @@ from accounts.graphql.users.mutations import (
     AuthRelayMutation, PatchUser, FollowUser, UnfollowUser,
     ChangeUsername, ChangeEmail, BlockUser, UnblockUser,
     VerifyNewEmail, SuspendUser, FlagUser, Subscribe, 
-    DeactivateAccount, ReactivateAccount, 
+    DeactivateAccount, ReactivateAccount, UserLogout
 )
 from posts.graphql.artist_posts.mutations import (
     CreateArtistPost, PatchArtistPost, DeleteArtistPost, RepostArtistPost, 
@@ -20,7 +20,11 @@ from posts.graphql.artist_posts.mutations import (
     PatchArtistPostComment, DeleteArtistPostComment, ReplyToArtistPostComment,
     LikeArtistPostComment, RemoveArtistPostCommentLike, FlagArtistPost,
     UnflagArtistPost, FlagArtistPostComment, UnflagArtistPostComment,
-    AbsolveArtistPost, AbsolveArtistPostComment
+    AbsolveArtistPost, AbsolveArtistPostComment, PinArtistPost,
+    PinArtistPostComment, UnpinPinnedArtistPost, UnpinPinnedArtistPostComment
+)
+from posts.graphql.artist_posts.queries import (
+    ArtistPostQuery, ArtistPostCommentQuery
 )
 from posts.graphql.non_artist_posts.queries import (
     NonArtistPostQuery, 
@@ -31,12 +35,17 @@ from .mutations import (
 )
 
 
-# All Queries will be inherited here
-class Query(UserQuery, MeQuery, NonArtistPostQuery, ArtistQuery, graphene.ObjectType):
+# All Queries will be imported here
+class Query(
+    UserQuery, MeQuery, ArtistQuery, 
+    ArtistPostQuery, ArtistPostCommentQuery,
+    NonArtistPostQuery, 
+    graphene.ObjectType
+):
     pass
 
 
-# All Mutations will be inherited here
+# All Mutations will be imported here
 class Mutation(AuthRelayMutation, graphene.ObjectType):
     debug = graphene.Field(DjangoDebug, name='_debug')
     
@@ -47,6 +56,7 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
 
     ## Extra user mutations
     patch_user = PatchUser.Field()
+    logout_user = UserLogout.Field()
     change_username = ChangeUsername.Field()
     change_email = ChangeEmail.Field()
     verify_new_email = VerifyNewEmail.Field()
@@ -81,6 +91,8 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     flag_artist_post = FlagArtistPost.Field()
     unflag_artist_post = UnflagArtistPost.Field()
     absolve_artist_post = AbsolveArtistPost.Field()
+    pin_artist_post = PinArtistPost.Field()
+    unpin_pinned_artist_post = UnpinPinnedArtistPost.Field()
     
     ## Artist post comment mutations
     create_artist_post_ancestor_comment = CreateArtistPostAncestorComment.Field()
@@ -92,6 +104,8 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     flag_artist_post_comment = FlagArtistPostComment.Field()
     unflag_artist_post_comment = UnflagArtistPostComment.Field()
     absolve_artist_post_comment = AbsolveArtistPostComment.Field()
+    pin_artist_post_comment = PinArtistPostComment.Field()
+    unpin_pinned_artist_post_comment = UnpinPinnedArtistPostComment.Field()
 
 
 

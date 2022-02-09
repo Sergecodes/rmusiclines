@@ -4,7 +4,7 @@ import accounts.managers
 import accounts.models.artists.operations
 import accounts.models.users.operations
 import accounts.validators
-import core.utils
+import core.mixins
 import datetime
 from django.conf import settings
 from django.contrib.postgres.operations import CreateCollation
@@ -71,7 +71,7 @@ class Migration(migrations.Migration):
             options={
                 'db_table': 'accounts"."user',
             },
-            bases=(models.Model, accounts.models.users.operations.UserOperations, core.utils.UsesCustomSignal),
+            bases=(models.Model, accounts.models.users.operations.UserOperations, core.mixins.UsesCustomSignal),
             managers=[
                 ('objects', accounts.managers.UserManager()),
             ],
@@ -155,7 +155,7 @@ class Migration(migrations.Migration):
             options={
                 'db_table': 'accounts"."suspension',
             },
-            bases=(models.Model, accounts.models.users.operations.SuspensionOperations, core.utils.UsesCustomSignal),
+            bases=(models.Model, accounts.models.users.operations.SuspensionOperations, core.mixins.UsesCustomSignal),
         ),
         migrations.CreateModel(
             name='Settings',

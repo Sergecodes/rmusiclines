@@ -11,4 +11,12 @@ verification_and_login_required = user_passes_test(
     })
 )
 
+# This is redefined from graphql_jwt's to customize the permission denied message
+custom_login_required = user_passes_test(
+    lambda user: user.is_authenticated,
+    PermissionDenied({
+        'message': _('You need to be logged in'),
+        'code': 'unauthenticated'
+    })
+)
 

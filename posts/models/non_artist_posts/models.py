@@ -9,7 +9,7 @@ from taggit.models import TaggedItemBase
 
 from core.constants import FILE_STORAGE_CLASS
 from core.fields import DynamicStorageFileField
-from core.utils import UsesCustomSignal
+from core.mixins import UsesCustomSignal
 from flagging.mixins import FlagMixin
 from posts.constants import (
 	ARTIST_POSTS_VIDEOS_UPLOAD_DIR, 
@@ -27,7 +27,6 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 	hashtags = TaggableManager(
 		verbose_name=_('Hashtags'), 
 		through='HashtaggedNonArtistPost',
-		related_name='non_artist_posts',
 		blank=True
 	)
 	parent = models.ForeignKey(
@@ -164,7 +163,8 @@ class HashtaggedNonArtistPost(TaggedItemBase):
 		NonArtistPost,
 		on_delete=models.CASCADE,
 		db_column='non_artist_post_id',
-		related_name='+'
+		related_name='hashtagged_hashtags',
+		related_query_name='hashtagged_hashtag'
 	)
 	# django-taggit says the name `tag` must be used
 	# Check out the parent class to see how they implemented this field (tag)
@@ -172,7 +172,8 @@ class HashtaggedNonArtistPost(TaggedItemBase):
 		PostHashtag,
 		on_delete=models.CASCADE,
 		db_column='post_hashtag_id',
-		related_name='+'
+		related_name='hashtagged_non_artist_posts',
+		related_query_name='hashtagged_non_artist_post'
 	)
 
 	class Meta:

@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from graphene_django_cud.mutations import DjangoPatchMutation
 from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
-from graphql_auth import relay
+from graphql_auth import relay as auth_relay
 from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
 from graphql_auth.decorators import login_required
 from graphql_auth.schema import UserNode
@@ -16,14 +16,13 @@ from accounts.models.users.models import Suspension
 from accounts.validators import UserUsernameValidator
 from flagging.graphql.types import *
 from flagging.models.models import FlagInstance
-from core.decorators import verification_and_login_required
 # Import(implicitly register) all types
 from .types import *
 
 User = get_user_model()
 
 
-class PatchUser(DjangoPatchMutation):
+class PatchUser(Output, DjangoPatchMutation):
     class Meta:
         model = User
         login_required = True
@@ -56,7 +55,29 @@ class PatchUser(DjangoPatchMutation):
             )
 
 
-class ChangeUsername(graphene.Mutation, Output):
+class UserLogout(Output, graphene.ClientIDMutation):
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, **input):
+        # TODO: to log a user out, the JWT cookie should be deleted on the 
+        # client's browser.
+
+        request = info.context
+        print(request.COOKIES)
+        # Since JWT is stateless(no record of authentication is saved), 
+        # to log user out, we simply delete the JWT cookie
+        try:
+            del request.COOKIES['JWT']
+        except KeyError:
+            pass
+
+        print(request.COOKIES)
+
+        return cls(success=False)
+
+
+class ChangeUsername(Output, graphene.Mutation):
     """Change username of current logged in user(if they are permitted to change it)"""
 
     class Arguments:
@@ -70,7 +91,7 @@ class ChangeUsername(graphene.Mutation, Output):
     # Also, We use user_passes_test intead of login_required in the verify authenticated 
     # decorator to be able to provide a custom error message
     @classmethod
-    @verification_and_login_required
+    @login_required
     def mutate(cls, root, info, new_username):
         # Validate username
         UserUsernameValidator()(new_username)
@@ -106,7 +127,7 @@ class VerifyNewEmail(
     _required_inputs = ["token"]
 
 
-class FollowUser(relay.ClientIDMutation):
+class FollowUser(Output, graphene.ClientIDMutation):
     class Input:
         user_id = graphene.ID(required=True)
 
@@ -121,11 +142,10 @@ class FollowUser(relay.ClientIDMutation):
         return cls(user_follow=follow_obj)
 
 
-class UnfollowUser(relay.ClientIDMutation):
+class UnfollowUser(Output, graphene.ClientIDMutation):
     class Input:
         user_id = graphene.ID(required=True)
 
-    deleted = graphene.Boolean()
     follow_id = graphene.Int()
 
     @classmethod
@@ -134,10 +154,10 @@ class UnfollowUser(relay.ClientIDMutation):
         user = info.context.user
         deleted_obj_id = user.unfollow_user(disambiguate_id(input['user_id']))
 
-        return cls(deleted=True, follow_id=deleted_obj_id)
+        return cls(follow_id=deleted_obj_id)
 
 
-class BlockUser(relay.ClientIDMutation):
+class BlockUser(Output, graphene.ClientIDMutation):
     class Input:
         user_id = graphene.ID(required=True)
 
@@ -152,11 +172,10 @@ class BlockUser(relay.ClientIDMutation):
         return cls(user_block=block_obj)
 
 
-class UnblockUser(relay.ClientIDMutation):
+class UnblockUser(Output, graphene.ClientIDMutation):
     class Input:
         user_id = graphene.ID(required=True)
 
-    deleted = graphene.Boolean()
     block_id = graphene.Int()
 
     @classmethod
@@ -165,10 +184,10 @@ class UnblockUser(relay.ClientIDMutation):
         user = info.context.user
         deleted_obj_id = user.unblock_user(disambiguate_id(input['user_id']))
 
-        return cls(deleted=True, block_id=deleted_obj_id)
+        return cls(block_id=deleted_obj_id)
 
 
-class DeactivateAccount(relay.ClientIDMutation):
+class DeactivateAccount(Output, graphene.ClientIDMutation):
     class Input:
         user_id = graphene.ID(required=True)
 
@@ -186,7 +205,7 @@ class DeactivateAccount(relay.ClientIDMutation):
         return cls(success=True, account=user)
 
 
-class ReactivateAccount(relay.ClientIDMutation):
+class ReactivateAccount(Output, graphene.ClientIDMutation):
     class Input:
         user_id = graphene.ID(required=True)
 
@@ -204,10 +223,10 @@ class ReactivateAccount(relay.ClientIDMutation):
         return cls(success=True, account=user)
 
 
-class FlagUser(relay.ClientIDMutation):
+class FlagUser(Output, graphene.ClientIDMutation):
     class Input:
         flag_user_id = graphene.ID(required=True)
-        reason = graphene.Enum(FlagInstance.reasons)
+        reason = graphene.Enum.from_enum(FlagInstance.FlagReason)
 
     flag_instance = graphene.Field(FlagInstanceNode)
 
@@ -231,7 +250,7 @@ class FlagUser(relay.ClientIDMutation):
         return cls(flag_instance=flag_instance_obj)
 
 
-class SuspendUser(relay.ClientIDMutation):
+class SuspendUser(Output, graphene.ClientIDMutation):
     class Input:
         suspend_user_id = graphene.ID(required=True)
         duration_in_days = graphene.Int()
@@ -264,30 +283,32 @@ class SuspendUser(relay.ClientIDMutation):
         return cls(suspension=suspension_obj)
 
 
-class Subscribe(relay.ClientIDMutation):
+class Subscribe(Output, graphene.ClientIDMutation):
     """Subscribe to the platform(become a premium user)"""
-    pass
+    
+    def mutate_and_get_payload(cls, root, info, **input):
+        pass
 
 
 class AuthRelayMutation(graphene.ObjectType):
-    register = relay.Register.Field()
-    verify_account = relay.VerifyAccount.Field()
-    resend_activation_email = relay.ResendActivationEmail.Field()
-    send_password_reset_email = relay.SendPasswordResetEmail.Field()
-    password_reset = relay.PasswordReset.Field()
-    password_set = relay.PasswordSet.Field() # For passwordless registration
-    password_change = relay.PasswordChange.Field()
-    delete_account = relay.DeleteAccount.Field()
-    # archive_account = relay.ArchiveAccount.Field()
-    # send_secondary_email_activation =  relay.SendSecondaryEmailActivation.Field()
-    # verify_secondary_email = relay.VerifySecondaryEmail.Field()
-    # swap_emails = relay.SwapEmails.Field()
+    register = auth_relay.Register.Field()
+    verify_account = auth_relay.VerifyAccount.Field()
+    resend_activation_email = auth_relay.ResendActivationEmail.Field()
+    send_password_reset_email = auth_relay.SendPasswordResetEmail.Field()
+    password_reset = auth_relay.PasswordReset.Field()
+    password_set = auth_relay.PasswordSet.Field() # For passwordless registration
+    password_change = auth_relay.PasswordChange.Field()
+    delete_account = auth_relay.DeleteAccount.Field()
+    # archive_account = auth_relay.ArchiveAccount.Field()
+    # send_secondary_email_activation =  auth_relay.SendSecondaryEmailActivation.Field()
+    # verify_secondary_email = auth_relay.VerifySecondaryEmail.Field()
+    # swap_emails = auth_relay.SwapEmails.Field()
     # remove_secondary_email = mutations.RemoveSecondaryEmail.Field()
 
     # django-graphql-jwt inheritances
-    token_auth = relay.ObtainJSONWebToken.Field()
-    verify_token = relay.VerifyToken.Field()
-    refresh_token = relay.RefreshToken.Field()
-    revoke_token = relay.RevokeToken.Field()
+    token_auth = auth_relay.ObtainJSONWebToken.Field()
+    verify_token = auth_relay.VerifyToken.Field()
+    refresh_token = auth_relay.RefreshToken.Field()
+    revoke_token = auth_relay.RevokeToken.Field()
 
 

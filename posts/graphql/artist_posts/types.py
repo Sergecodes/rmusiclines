@@ -1,31 +1,35 @@
 import graphene
 from graphene_django import DjangoObjectType
 
-from core.utils import PKMixin
+from core.mixins import PKMixin
 from posts.models.artist_posts.models import (
     ArtistPost, ArtistPostBookmark, ArtistPostComment, ArtistPostDownload, 
     ArtistPostRating, ArtistPostCommentLike, 
-
 )
+from ..common.types import CommentFilter, PostFilter
+
+
+class ArtistPostFilter(PostFilter):
+    class Meta(PostFilter.Meta):
+        model = ArtistPost
+
+
+class ArtistPostCommentFilter(CommentFilter):
+    class Meta(CommentFilter.Meta):
+        model = ArtistPostComment
 
 
 class ArtistPostNode(PKMixin, DjangoObjectType):
     class Meta:
         model = ArtistPost
-        filter_fields = ['body']
-        filter_fields = {
-            'body': ['exact', 'icontains', 'istartswith'],
-            'created_on': ['year__lt', 'year__gt'],
-            'is_private': ['exact'],
-            'num_ancestor_comments': ['lt', 'gt'],
-            'num_stars': ['lt', 'gt'],
-        }
+        filterset_class = ArtistPostFilter
         interfaces = [graphene.relay.Node, ]
 
 
 class ArtistPostCommentNode(PKMixin, DjangoObjectType):
     class Meta:
         model = ArtistPostComment
+        filterset_class = ArtistPostCommentFilter
         interfaces = [graphene.relay.Node, ]
 
 

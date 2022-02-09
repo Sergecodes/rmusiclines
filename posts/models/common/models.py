@@ -97,6 +97,11 @@ class Post(models.Model, PostOperations):
 		return self.overall_comments.filter(ancestor__isnull=True)
 
 	@property
+	def simple_reposts(self):
+		"""Get reposts that don't have a body(that are just reposts)"""
+		return self.reposts.filter(is_simple_repost=True)
+
+	@property
 	def non_simple_reposts(self):
 		"""Get reposts that have a body(that are not just reposts)"""
 		return self.reposts.filter(is_simple_repost=False)

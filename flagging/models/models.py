@@ -79,13 +79,22 @@ class Flag(models.Model, FlagOperations):
 
 
 class FlagInstance(models.Model):
+    # Flag reasons
+    @unique
+    class FlagReason(IntEnum):
+        SPAM = 1
+        EXPLICIT = 2
+        HATE_SPEECH = 3
+        VIOLENCE = 4
+        HARASSMENT = 5
+        
     # Reasons displayed when flagging an object
     FLAG_REASONS = [
-        (1, _('Unwanted commercial content or spam')),
-        (2, _('Pornography or sexually explicit content')),
-        (3, _('Hate speech or graphic violence')),
-        (4, _('Abusive or intended at promoting hatred')),
-        (5, _('Harassment or bullying')),
+        (FlagReason.SPAM.value, _('Unwanted commercial content or spam')),
+        (FlagReason.EXPLICIT.value, _('Pornography or sexually explicit content')),
+        (FlagReason.HATE_SPEECH.value, _('Hate speech or graphic violence')),
+        (FlagReason.VIOLENCE.value, _('Abusive or intended at promoting hatred')),
+        (FlagReason.HARASSMENT.value, _('Harassment or bullying')),
     ]
 
     # Make a named tuple

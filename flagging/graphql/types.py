@@ -1,7 +1,7 @@
 import graphene
 from graphene_django import DjangoObjectType
 
-from core.utils import PKMixin
+from core.mixins import PKMixin
 from flagging.models.models import Flag, FlagInstance
 
 

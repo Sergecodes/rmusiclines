@@ -44,7 +44,6 @@ class Artist(models.Model, ArtistOperations):
 	tags = TaggableManager(
 		verbose_name=_('Tags'), 
 		through='TaggedArtist',
-		related_name='artists',
 		blank=True
 	)
 	followers = models.ManyToManyField(
@@ -132,7 +131,6 @@ class ArtistFollow(models.Model):
                 name='unique_user_artist_follow'
             ),
         ]
-
 
 
 class ArtistPhoto(models.Model):
@@ -226,16 +224,29 @@ class TaggedArtist(TaggedItemBase):
 		Artist,
 		on_delete=models.CASCADE,
 		db_column='artist_id',
-		related_name='+'
+		related_name='tagged_tags',
+		related_query_name='tagged_tag'
 	)
 	# django-taggit says the name `tag` must be used
 	tag = models.ForeignKey(
 		ArtistTag,
 		on_delete=models.CASCADE,
 		db_column='artist_tag_id',
-		related_name='+'
+		related_name='tagged_artists',
+		related_query_name='tagged_artist'
 	)
-
+	# To get all artists of a given tag:
+	# Method 1:
+	# tag_names = ['tag1', 'tag2']
+	# Artist.objects.filter(tags__name__in=[tag_names])
+	#
+	# Method 2:
+	# tagged_artists = tag.tagged_artists.all()
+	# artists_list = [tagged_artist.content_object for tagged_artist in tagged_artists]
+	#
+	# Method 3:
+	# Artist.objects.filter(tags=tag)
+	
 	class Meta:
 		db_table = 'accounts\".\"artist_with_tag'
 

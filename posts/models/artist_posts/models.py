@@ -11,7 +11,7 @@ from taggit.models import TaggedItemBase
 from accounts.models.artists.models import Artist
 from core.constants import FILE_STORAGE_CLASS
 from core.fields import DynamicStorageFileField
-from core.utils import UsesCustomSignal
+from core.mixins import UsesCustomSignal
 from flagging.mixins import FlagMixin
 from posts.constants import ARTIST_POSTS_PHOTOS_UPLOAD_DIR, ARTIST_POSTS_VIDEOS_UPLOAD_DIR
 from posts.validators import validate_post_photo_file, validate_post_video_file
@@ -23,7 +23,6 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 	hashtags = TaggableManager(
 		verbose_name=_('Hashtags'), 
 		through='HashtaggedArtistPost',
-		related_name='artist_posts',
 		blank=True
 	)
 	parent = models.ForeignKey(
@@ -192,14 +191,16 @@ class HashtaggedArtistPost(TaggedItemBase):
 		ArtistPost,
 		on_delete=models.CASCADE,
 		db_column='artist_post_id',
-		related_name='+'
+		related_name='hashtagged_hashtags',
+		related_query_name='hashtagged_hashtag'
 	)
 	# django-taggit says the name `tag` must be used
 	tag = models.ForeignKey(
 		PostHashtag,
 		on_delete=models.CASCADE,
 		db_column='post_hashtag_id',
-		related_name='+'
+		related_name='hashtagged_artist_posts',
+		related_query_name='hashtagged_artist_post'
 	)
 
 	class Meta:

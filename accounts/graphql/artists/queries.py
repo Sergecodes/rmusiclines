@@ -1,24 +1,30 @@
 import graphene
+import graphene_django_optimizer as gql_optimizer
 from django.utils.translation import gettext_lazy as _
+from graphene import relay
+from graphene_django.filter import DjangoFilterConnectionField
 
 from accounts.models.artists.models import Artist
 from .types import ArtistNode
 
 
+
 class ArtistQuery(graphene.ObjectType):
-    artists = graphene.List(ArtistNode)
-    artist_by_name = graphene.Field(
+    artist = relay.Node.Field(ArtistNode)
+
+    all_artists = DjangoFilterConnectionField(ArtistNode)
+    artist_by_slug = graphene.Field(
         ArtistNode, 
-        name=graphene.String(required=True)
+        slug=graphene.String(required=True)
     )
-    # artist_by_tags = graphene.List(graphene.String)
 
     def resolve_all_artists(root, info):
-        return Artist.objects.all()
+        return gql_optimizer.query(Artist.objects.all(), info)
 
-    def resolve_artist_by_name(root, info, name):
+    def resolve_artist_by_slug(root, info, slug):
         try:
-            return Artist.objects.get(name=name)
+            # Use filter so that we can use methods such as select_related, only, ...
+            return gql_optimizer.query(Artist.objects.filter(slug=slug), info).get()
         except Artist.DoesNotExist:
-            return None
+            return Artist.objects.none()
 

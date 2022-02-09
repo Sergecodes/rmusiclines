@@ -18,7 +18,7 @@ from accounts.managers import UserManager
 from accounts.utils import get_age
 from accounts.validators import UserUsernameValidator
 from core.constants import GENDERS, FILE_STORAGE_CLASS
-from core.utils import UsesCustomSignal
+from core.mixins import UsesCustomSignal
 from posts.models.artist_posts.models import ArtistPost
 from posts.models.non_artist_posts.models import NonArtistPost
 from .operations import UserOperations, SuspensionOperations
@@ -154,14 +154,14 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         blank=True, 
         null=True
     )
-    num_followers = models.PositiveIntegerField(default=0)
-    num_following = models.PositiveIntegerField(default=0)
-    num_artist_posts = models.PositiveIntegerField(default=0)
-    num_non_artist_posts = models.PositiveIntegerField(default=0)
-    num_artist_post_reposts = models.PositiveIntegerField(default=0)
-    num_non_artist_post_reposts = models.PositiveIntegerField(default=0)
-    num_ancestor_artist_post_comments = models.PositiveIntegerField(default=0)
-    num_ancestor_non_artist_post_comments = models.PositiveIntegerField(default=0)
+    num_followers = models.PositiveIntegerField(default=0, editable=False)
+    num_following = models.PositiveIntegerField(default=0, editable=False)
+    num_artist_posts = models.PositiveIntegerField(default=0, editable=False)
+    num_non_artist_posts = models.PositiveIntegerField(default=0, editable=False)
+    num_artist_post_reposts = models.PositiveIntegerField(default=0, editable=False)
+    num_non_artist_post_reposts = models.PositiveIntegerField(default=0, editable=False)
+    num_ancestor_artist_post_comments = models.PositiveIntegerField(default=0, editable=False)
+    num_ancestor_non_artist_post_comments = models.PositiveIntegerField(default=0, editable=False)
 
     # EMAIL_FIELD needs to be set for graphql-auth
     EMAIL_FIELD = 'email'
@@ -311,9 +311,6 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
             ) 
 
     def save(self, *args, **kwargs):
-        # Title case display_name
-        self.display_name = self.display_name.title()
-
         # See https://stackoverflow.com/q/4441539/
         # why-doesnt-djangos-model-save-call-full-clean/
         self.clean()

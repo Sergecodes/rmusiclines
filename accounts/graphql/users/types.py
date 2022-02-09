@@ -5,7 +5,7 @@ from graphql_auth.schema import UserNode as BaseUserNode
 from graphql_auth.settings import graphql_auth_settings
 
 from accounts.models.users.models import UserBlocking, UserFollow, Suspension
-from core.utils import PKMixin
+from core.mixins import PKMixin
 
 User = get_user_model()
 

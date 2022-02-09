@@ -22,3 +22,4 @@ django-taggit-serializer==0.1.7
 graphene-django-cud==0.9.1
 django-graphql-auth==0.3.16
 graphene-file-upload==1.16.0
+graphene-django-optimizer==0.8.0
