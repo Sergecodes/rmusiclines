@@ -12,14 +12,6 @@ class PostOperations:
         return ratings_dict
 
 
-class PostHashtagOperations:
-    """Mixin for operations on PostHashtag model"""
-    
-    def get_artist_posts(self, limit=None, **filters):
-        self.artist_posts.filter(**filters)[:limit]
-    
-    def get_non_artist_posts(self, limit=None, **filters):
-        self.non_artist_posts.filter(**filters)[:limit]
 
     
     

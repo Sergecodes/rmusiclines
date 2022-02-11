@@ -95,7 +95,7 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		super().clean()
 
 		# Ensure post and parent concern the same artist
-		if self.parent.artist_id != self.artist_id:
+		if self.parent and self.parent.artist_id != self.artist_id:
 			raise ValidationError(
 				_('An artist post repost must be of the same artist as the parent post'),
 				code='invalid'
@@ -200,7 +200,11 @@ class HashtaggedArtistPost(TaggedItemBase):
 		on_delete=models.CASCADE,
 		db_column='post_hashtag_id',
 		related_name='hashtagged_artist_posts',
-		related_query_name='hashtagged_artist_post'
+		# When related_query_name is used, it errors are raised when trying to
+		# get tags via `post.hashtags.all()`; perhaps they don't support scenarios where
+		# the related_name is different from the related_query_name.
+		# Furthermore, in django-taggit's documentation, there's no area where
+		# they use related_query_name. So let's just stick with only related_name like them.
 	)
 
 	class Meta:
@@ -346,7 +350,9 @@ class ArtistPostComment(Comment, FlagMixin, UsesCustomSignal):
 		db_column='parent_comment_id',
 		# Is nullable since comment can be direct comment on post 
 		# hence it doesn't have a parent comment or its parent may be deleted.
-		# For instance, if a YouTube sub comment is deleted, replies aren't deleted
+		# For instance, if a YouTube sub comment is deleted, replies aren't deleted.
+		#
+		# In other words, only ancestor comments will have this attribute set to null.
 		blank=True,
 		null=True
 	)
@@ -358,7 +364,8 @@ class ArtistPostComment(Comment, FlagMixin, UsesCustomSignal):
 		related_query_name='child_comment',
 		db_column='ancestor_comment_id',
 		# Is nullable since comment can be direct comment on post 
-		# hence it doesn't have an ancestor comment
+		# hence it doesn't have an ancestor comment. 
+		# Ancestor comments will have this attribute set to null
 		blank=True,
 		null=True
 	)

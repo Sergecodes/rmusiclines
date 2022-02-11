@@ -6,6 +6,7 @@ from graphene_django_cud.mutations import (
 )
 from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
+from graphql_auth.bases import Output
 from graphql_auth.decorators import login_required
 
 from accounts.mixins import ArtistCUMutationMixin
@@ -15,7 +16,7 @@ from accounts.models.artists.models import Artist
 from .types import *
 
 
-class CreateArtist(DjangoCreateMutation):
+class CreateArtist(Output, DjangoCreateMutation):
     class Meta(ArtistCUMutationMixin.Meta):
         optional_fields = ('slug', 'followers', )
         permissions = ('accounts.add_artist', )
@@ -46,7 +47,7 @@ class CreateArtist(DjangoCreateMutation):
             )
 
 
-class PatchArtist(DjangoPatchMutation):
+class PatchArtist(Output, DjangoPatchMutation):
     class Meta(ArtistCUMutationMixin.Meta):
         permissions = ['accounts.change_artist']
 
@@ -59,13 +60,13 @@ class PatchArtist(DjangoPatchMutation):
         return super().after_mutate(root, info, id, input, obj, return_data)
 
 
-class DeleteArtist(DjangoDeleteMutation):
+class DeleteArtist(Output, DjangoDeleteMutation):
     class Meta:
         model = Artist    
         permissions = ['accounts.delete_artist']  
 
 
-class FilterUpdateArtist(DjangoFilterUpdateMutation):
+class FilterUpdateArtist(Output, DjangoFilterUpdateMutation):
     class Meta:
         model = Artist
         permissions = ['accounts.change_artist']  
@@ -76,7 +77,7 @@ class FilterUpdateArtist(DjangoFilterUpdateMutation):
         ) 
 
 
-class FollowArtist(relay.ClientIDMutation):
+class FollowArtist(Output, relay.ClientIDMutation):
     class Input:
         artist_id = graphene.ID(required=True)
 
@@ -84,26 +85,25 @@ class FollowArtist(relay.ClientIDMutation):
     
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info, artist_id):
         user = info.context.user
-        follow_obj = user.follow_artist(disambiguate_id(input['artist_id']))
+        follow_obj = user.follow_artist(int(disambiguate_id(artist_id)))
 
         return cls(artist_follow=follow_obj)
 
 
-class UnfollowArtist(relay.ClientIDMutation):
+class UnfollowArtist(Output, relay.ClientIDMutation):
     class Input:
         artist_id = graphene.ID(required=True)
 
-    deleted = graphene.Boolean()
     follow_id = graphene.Int()
 
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info, artist_id):
         user = info.context.user
-        deleted_obj_id = user.unfollow_artist(disambiguate_id(input['artist_id']))
+        deleted_obj_id = user.unfollow_artist(int(disambiguate_id(artist_id)))
 
-        return cls(deleted=True, follow_id=deleted_obj_id)
+        return cls(follow_id=deleted_obj_id)
 
 

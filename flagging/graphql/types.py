@@ -5,6 +5,9 @@ from core.mixins import PKMixin
 from flagging.models.models import Flag, FlagInstance
 
 
+FlagReason = graphene.Enum.from_enum(FlagInstance.FlagReason)
+
+
 class FlagNode(PKMixin, DjangoObjectType):
     class Meta:
         model = Flag

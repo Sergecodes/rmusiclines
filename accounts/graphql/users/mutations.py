@@ -10,6 +10,7 @@ from graphql_auth import relay as auth_relay
 from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
 from graphql_auth.decorators import login_required
 from graphql_auth.schema import UserNode
+from graphql_auth.utils import revoke_user_refresh_token
 
 from accounts.mixins import SendNewEmailActivationMixin, VerifyNewEmailMixin
 from accounts.models.users.models import Suspension
@@ -37,12 +38,12 @@ class PatchUser(Output, DjangoPatchMutation):
     def check_permissions(cls, root, info, input, id, obj: User):
         # Only current logged in user can update their account
 
-        # The id used should be the pk not the global relay id
-        if not isinstance(id, int):
-            raise GraphQLError(
-                _("Use the primary key of the user which is an integer; relay ids are not supported"),
-                extensions={'code': 'invalid'}
-            ) 
+        # The id used should be the pk not the global relay id NOPE. disambiguate_id exists xD
+        # if not isinstance(id, int):
+        #     raise GraphQLError(
+        #         _("Use the primary key of the user which is an integer; relay ids are not supported"),
+        #         extensions={'code': 'invalid'}
+        #     ) 
 
         print(info.context.user, info.context.user.pk)
         print(obj, obj.pk)
@@ -61,7 +62,7 @@ class UserLogout(Output, graphene.ClientIDMutation):
     @login_required
     def mutate_and_get_payload(cls, root, info, **input):
         # TODO: to log a user out, the JWT cookie should be deleted on the 
-        # client's browser.
+        # client's browser and refresh tokens revoked.
 
         request = info.context
         print(request.COOKIES)
@@ -74,13 +75,16 @@ class UserLogout(Output, graphene.ClientIDMutation):
 
         print(request.COOKIES)
 
+        # Revoke refresh tokens
+        revoke_user_refresh_token(request.user)
+
         return cls(success=False)
 
 
-class ChangeUsername(Output, graphene.Mutation):
+class ChangeUsername(Output, graphene.ClientIDMutation):
     """Change username of current logged in user(if they are permitted to change it)"""
 
-    class Arguments:
+    class Input:
         new_username = graphene.String()
 
     # The inherited class Output contains other appropriate return fields (success & errors)
@@ -92,7 +96,7 @@ class ChangeUsername(Output, graphene.Mutation):
     # decorator to be able to provide a custom error message
     @classmethod
     @login_required
-    def mutate(cls, root, info, new_username):
+    def mutate_and_get_payload(cls, root, info, new_username):
         # Validate username
         UserUsernameValidator()(new_username)
 
@@ -108,7 +112,10 @@ class ChangeUsername(Output, graphene.Mutation):
                 extensions={'code': err.code}
             )
 
-        return cls(user=user, success=True)
+        # Revoke refresh tokens
+        revoke_user_refresh_token(user)
+
+        return cls(user=user)
 
 
 class ChangeEmail(
@@ -135,9 +142,9 @@ class FollowUser(Output, graphene.ClientIDMutation):
     
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info, user_id):
         user = info.context.user
-        follow_obj = user.follow_user(disambiguate_id(input['user_id']))
+        follow_obj = user.follow_user(int(disambiguate_id(user_id)))
 
         return cls(user_follow=follow_obj)
 
@@ -150,9 +157,9 @@ class UnfollowUser(Output, graphene.ClientIDMutation):
 
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info, user_id):
         user = info.context.user
-        deleted_obj_id = user.unfollow_user(disambiguate_id(input['user_id']))
+        deleted_obj_id = user.unfollow_user(int(disambiguate_id(user_id)))
 
         return cls(follow_id=deleted_obj_id)
 
@@ -165,9 +172,9 @@ class BlockUser(Output, graphene.ClientIDMutation):
     
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info, user_id):
         user = info.context.user
-        block_obj = user.block_user(disambiguate_id(input['user_id']))
+        block_obj = user.block_user(int(disambiguate_id(user_id)))
 
         return cls(user_block=block_obj)
 
@@ -180,47 +187,46 @@ class UnblockUser(Output, graphene.ClientIDMutation):
 
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info, user_id):
         user = info.context.user
-        deleted_obj_id = user.unblock_user(disambiguate_id(input['user_id']))
+        deleted_obj_id = user.unblock_user(int(disambiguate_id(user_id)))
 
         return cls(block_id=deleted_obj_id)
 
 
 class DeactivateAccount(Output, graphene.ClientIDMutation):
-    class Input:
-        user_id = graphene.ID(required=True)
-
+    
     success = graphene.Boolean()
     account = graphene.Field(UserNode)
     
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info):
         user = info.context.user
         user.deactivate()
 
+        # Revoke refresh tokens
+        revoke_user_refresh_token(user)
+
         # Refresh from db to get updated records
         user.refresh_from_db()
-        return cls(success=True, account=user)
+        return cls(account=user)
 
 
 class ReactivateAccount(Output, graphene.ClientIDMutation):
-    class Input:
-        user_id = graphene.ID(required=True)
-
+ 
     success = graphene.Boolean()
     account = graphene.Field(UserNode)
     
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
+    def mutate_and_get_payload(cls, root, info):
         user = info.context.user
         user.reactivate()
 
         # Refresh from db to get updated records
         user.refresh_from_db()
-        return cls(success=True, account=user)
+        return cls(account=user)
 
 
 class FlagUser(Output, graphene.ClientIDMutation):
@@ -232,8 +238,8 @@ class FlagUser(Output, graphene.ClientIDMutation):
 
     @classmethod
     @login_required
-    def mutate_and_get_payload(cls, root, info, **input):
-        user, flag_user_id = info.context.user, disambiguate_id(input['flag_user_id'])
+    def mutate_and_get_payload(cls, root, info, flag_user_id, reason):
+        user = info.context.user
 
         # Only moderator can flag user account
         if not user.is_mod:
@@ -242,7 +248,7 @@ class FlagUser(Output, graphene.ClientIDMutation):
                 extensions={'code': 'not_permitted'}
             )
 
-        flag_instance_obj = user.flag_object(User.active_users.get(id=flag_user_id), input['reason'])
+        flag_instance_obj = user.flag_object(User.active_users.get(id=flag_user_id), reason)
 
         # TODO Notify staff
 
@@ -254,15 +260,16 @@ class SuspendUser(Output, graphene.ClientIDMutation):
     class Input:
         suspend_user_id = graphene.ID(required=True)
         duration_in_days = graphene.Int()
-        reason = graphene.String()
+        reason = graphene.String(required=True)
 
     suspension = graphene.Field(SuspensionNode)
 
     @classmethod
     @login_required
     def mutate_and_get_payload(cls, root, info, **input):
-        current_user, suspend_user_id = info.context.user, disambiguate_id(input['suspend_user_id'])
-        
+        current_user = info.context.user
+        suspend_user_id = int(disambiguate_id(input['suspend_user_id']))
+
         # Only staff can suspend users
         if not current_user.is_staff:
             raise GraphQLError(
@@ -272,8 +279,8 @@ class SuspendUser(Output, graphene.ClientIDMutation):
 
         suspension_obj = Suspension(
             suspender=current_user,
-            user=User.active_users.get(id=suspend_user_id),
-            reason=input.get('reason', '')
+            suspended_user=User.active_users.get(id=suspend_user_id),
+            reason=input['reason']
         )
 
         if num_days := input.get('duration_in_days'):

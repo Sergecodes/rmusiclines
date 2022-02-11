@@ -173,7 +173,7 @@ class HashtaggedNonArtistPost(TaggedItemBase):
 		on_delete=models.CASCADE,
 		db_column='post_hashtag_id',
 		related_name='hashtagged_non_artist_posts',
-		related_query_name='hashtagged_non_artist_post'
+		# Don't set related_query_name. Just allow it.
 	)
 
 	class Meta:

@@ -182,6 +182,14 @@ class UserOperations:
 
         return follow_obj_id
 
+    def is_following_user(self, other_or_id):
+        other = get_user(other_or_id)
+        return self in other.followers.all()
+
+    def is_following_artist(self, artist_or_id):
+        artist = get_artist(artist_or_id)
+        return self in artist.followers.all()
+    
     def block_user(self, other_or_id):
         from accounts.models.users.models import UserBlocking
 
@@ -289,8 +297,14 @@ class UserOperations:
             )
 
         comment_id = comment.id
+        parent = comment.parent
         ancestor, poster, post = comment.ancestor, comment.poster, comment.post_concerned
         comment.delete()
+
+        # Update parent comment's number of replies
+        if parent:
+            parent.num_replies = F('num_replies') - 1
+            parent.save(update_fields=['num_replies'])
 
         # If we are deleting an ancestor comment
         if comment.is_ancestor:
@@ -316,8 +330,14 @@ class UserOperations:
             )
 
         comment_id = comment.id
+        parent = comment.parent
         ancestor, poster, post = comment.ancestor, comment.poster, comment.post_concerned
         comment.delete()
+
+        # Update parent comment's number of replies
+        if parent:
+            parent.num_replies = F('num_replies') - 1
+            parent.save(update_fields=['num_replies'])
 
         # If we are deleting an ancestor comment
         if comment.is_ancestor:

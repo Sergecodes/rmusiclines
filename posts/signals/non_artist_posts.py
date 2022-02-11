@@ -99,7 +99,12 @@ def set_comment_attributes(sender, instance: NonArtistPostComment, created, **kw
     if created:
         poster, post = comment.poster, comment.post_concerned
 
-        # Increment post comment count
+        # Update number of replies of comment's parent
+        if parent := comment.parent:
+            parent.num_replies = F('num_replies') + 1
+            parent.save(update_fields=['num_replies'])
+
+        # Increment post and poster comment count
         if comment.is_ancestor:
             post.num_ancestor_comments = F('num_ancestor_comments') + 1
             post.save(update_fields=['num_ancestor_comments'])

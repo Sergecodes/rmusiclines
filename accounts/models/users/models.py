@@ -447,7 +447,7 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
         related_name='suspended_users',
         related_query_name='suspension'
     )
-    user = models.ForeignKey(
+    suspended_user = models.ForeignKey(
         User, 
         db_column='user_id', 
         on_delete=models.CASCADE,
@@ -456,7 +456,7 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
     )
     given_on = models.DateTimeField(auto_now_add=True)
     duration = models.DurationField(default=datetime.timedelta(days=1))
-    reason = models.TextField(blank=True)
+    reason = models.TextField()
     over_on = models.DateTimeField()
 
     def __str__(self):
@@ -472,7 +472,7 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
 
     def clean(self):
         # Staff can't be suspended
-        if self.user.is_staff:
+        if self.suspended_user.is_staff:
             raise ValidationError(
                 _("You can't suspend a staff."),
                 code="can't_suspend_staff"
@@ -482,7 +482,9 @@ class Suspension(models.Model, SuspensionOperations, UsesCustomSignal):
         self.clean()
 
         if not self.pk:
-            self.over_on = self.given_on + self.period
+            # Since object is still new, given_on has not yet being set (is None)
+            self.given_on = timezone.now()
+            self.over_on = self.given_on + self.duration
 
         super().save(*args, **kwargs)
 

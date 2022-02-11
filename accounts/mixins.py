@@ -10,7 +10,7 @@ from graphql_auth.constants import Messages, TokenAction
 from graphql_auth.decorators import verification_required, password_confirmation_required
 from graphql_auth.exceptions import UserNotVerified, TokenScopeError
 from graphql_auth.models import UserStatus
-from graphql_auth.utils import get_token_paylod
+from graphql_auth.utils import get_token_paylod, revoke_user_refresh_token
 from graphql_auth.settings import graphql_auth_settings
 from smtplib import SMTPException
 
@@ -140,6 +140,9 @@ class VerifyNewEmailMixin(Output):
             # (perhaps key has expired or already deleted)
             if not new_email:
                 raise KeyError
+
+            # Revoke previous refresh tokens since user has changed his email
+            revoke_user_refresh_token(user)
 
             user.email = new_email
             user.save(update_fields=['email'])

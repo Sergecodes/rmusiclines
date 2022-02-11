@@ -22,9 +22,13 @@ class FlagMixin:
 		return Flag.objects.get_flag(self)
 
 	@property
-	def is_flagged(self):
+	def is_flagged(self)-> bool:
 		"""Return whether or not object is flagged"""
 		return Flag.objects.is_flagged(self)
+
+	@property
+	def num_flags(self)-> int:
+		return self.flag.count
 
 
 class BaseMixin:

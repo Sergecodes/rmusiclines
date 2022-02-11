@@ -335,7 +335,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Post Hashtags',
                 'db_table': 'posts"."post_hashtag',
             },
-            bases=(models.Model, posts.models.common.operations.PostHashtagOperations),
+            bases=(models.Model, ),
         ),
         migrations.AddConstraint(
             model_name='posthashtag',

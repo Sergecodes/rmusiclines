@@ -13,7 +13,7 @@ from posts.constants import (
 	COMMENT_CAN_EDIT_TIME_LIMIT, POST_CAN_EDIT_TIME_LIMIT,
 	MAX_COMMENT_LENGTH, MAX_POST_LENGTH
 )
-from .operations import PostOperations, PostHashtagOperations
+from .operations import PostOperations
 
 
 class Post(models.Model, PostOperations):
@@ -123,9 +123,9 @@ class Post(models.Model, PostOperations):
 		return self.created_on != self.last_updated_on
 	
 	@property
-	def get_tags(self)-> list:
+	def get_tags(self):
 		"""Return list of hashtags. Used in the graphql api to get tags of a post."""
-		return self.hashtags.all()
+		return list(self.hashtags.all())
 
 	def clean(self):
 		# Validate post length
@@ -154,7 +154,7 @@ class Post(models.Model, PostOperations):
 
 # See django-taggit docs on how to use a Custom tag
 # djanto-taggit.readthedocs.io/en/latest/custom_tagging.html
-class PostHashtag(TagBase, PostHashtagOperations):
+class PostHashtag(TagBase):
 	# Remember hashtags do not have to contain spaces
 	# thus it is sensible to set the name and slug to the same length.
 	# As a matter of fact, the name and the slug will always be the same.
@@ -173,6 +173,18 @@ class PostHashtag(TagBase, PostHashtagOperations):
 		max_length=100,
 		allow_unicode=True
 	)
+
+	@property
+	def artist_posts(self):
+		from posts.models.artist_posts.models import ArtistPost
+
+		return ArtistPost.objects.filter(hashtags__in=[self]).distinct()
+
+	@property
+	def non_artist_posts(self):
+		from posts.models.non_artist_posts.models import NonArtistPost
+
+		return NonArtistPost.objects.filter(hashtags__in=[self]).distinct()
 
 	def clean(self):
 		hashtag = self.name
@@ -233,6 +245,7 @@ class Comment(models.Model):
 	# If comment is an ancestor, this will hold its number of child comments(its number
 	# of descendant comments - by default 0). Else it will be null
 	num_child_comments = models.PositiveIntegerField(blank=True, null=True, editable=False)
+	num_replies = models.PositiveIntegerField(default=0, editable=False)
 	
 	def __str__(self):
 		return self.body

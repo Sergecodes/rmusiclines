@@ -42,7 +42,7 @@ class Query(
     NonArtistPostQuery, 
     graphene.ObjectType
 ):
-    pass
+    debug = graphene.Field(DjangoDebug, name='_debug')
 
 
 # All Mutations will be imported here

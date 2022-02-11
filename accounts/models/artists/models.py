@@ -64,8 +64,8 @@ class Artist(models.Model, ArtistOperations):
 		return self.name
 
 	@property
-	def get_tags(self)-> list:
-		"""Return list of hashtags. Used in the graphql api to get tags of an artist."""
+	def get_tags(self):
+		"""Return list of tags. Used in the graphql api to get tags of an artist."""
 		return list(self.tags.all())
 
 	def clean(self):
@@ -171,36 +171,9 @@ class ArtistTag(TagBase, ArtistTagOperations):
 	name = models.CharField(_('Name'), unique=True, max_length=30)
 	slug = models.SlugField(unique=True, max_length=100, editable=False, allow_unicode=True)
 
-	# def clean(self):
-	# 	# Tags should be alphabetic and con contain spaces
-	# 	# but no leading nor trailing spaces
-	# 	tag = self.name
-
-	# 	if tag.startswith(' ') or tag.endswith(' '):
-	# 		raise ValidationError(
-	# 			_(
-	# 				"Tags should be alphabetic(can not contain symbols nor leading "
-	# 				"or trailing space)"
-	# 			)
-	# 		)
-
-	# 	# Remove space from tag so as to verify
-	# 	# if tag has only alphabetic characters
-	# 	tag = tag.replace(' ', '')
-	# 	if not tag.isalpha():
-	# 		raise ValidationError(
-	# 			_(
-	# 				"Tags should be alphabetic(can not contain symbols nor leading "
-	# 				"or trailing space)"
-	# 			)
-	# 		)
-		
-	# def save(self, *args, **kwargs):
-	# 	self.clean()
-
-	# 	# No need to slugify tag name to get slug, 
-	# 	# django-taggit's TagBase model which is inherited does this by default.
-	# 	super().save(*args, **kwargs)
+	@property
+	def artists(self):
+		return Artist.objects.filter(tags__in=[self])
 
 	class Meta:
 		db_table = 'accounts\".\"artist_tag'
@@ -233,7 +206,7 @@ class TaggedArtist(TaggedItemBase):
 		on_delete=models.CASCADE,
 		db_column='artist_tag_id',
 		related_name='tagged_artists',
-		related_query_name='tagged_artist'
+		# Don't set related_query_name
 	)
 	# To get all artists of a given tag:
 	# Method 1:
