@@ -1,8 +1,8 @@
 
 # TODO
-- db constraint; artist post and repost should have same artist_id
 - send notifications wherever there's a # TODO Notify ...
 - post, update post, repost mutations (handle photos, gifs and videos plus caching)
+- db constraint; artist post and repost should have same artist_id
 - enable profile pic and cover photo uploads
 - setup social authentication (django graphql social auth...)
 

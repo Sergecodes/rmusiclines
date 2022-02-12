@@ -1,5 +1,7 @@
 """Contains project-wide utilities"""
+
 from django.contrib.contenttypes.models import ContentType
+from graphene_django_cud.util import disambiguate_id
 
 
 def get_content_type(model_obj):
@@ -8,6 +10,17 @@ def get_content_type(model_obj):
     return ContentType.objects.get_for_model(model_obj)
 
 
+def get_int_id_or_none(id):
+    """
+    Parse disambiguated id to int or None. `id` should be a graphene.ID \n
+    Basically this function should be used when the id can be None.
+    """
+    # If id is None, return None coz disambiguate_id(None) would be None 
+    # and int(None) would raise TypeError
+    if id is None:
+        return None
+
+    return int(disambiguate_id(id))
 
 
 # Problem: The country field is a choices field; graphene parses it into an Enum.

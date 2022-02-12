@@ -92,6 +92,10 @@ class Post(models.Model, PostOperations):
 		return True if self.parent is None else False
 
 	@property
+	def is_repost(self):
+		return not self.is_parent
+
+	@property
 	def ancestor_comments(self):
 		"""Get comments that are comments to post(ancestors) and not replies"""
 		return self.overall_comments.filter(ancestor__isnull=True)

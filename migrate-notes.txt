@@ -154,3 +154,28 @@ FOR EACH ROW
 WHEN (NEW.pinned_comment_id IS NOT NULL)
 EXECUTE FUNCTION pin_non_artist_post_comment();
 
+
+8. Trigger on posts.artist_post to ensure parent post and repost concern the same artist
+CREATE OR REPLACE FUNCTION repost_artist_post() RETURNS trigger AS $repost_artist_post$
+    BEGIN 
+        {% comment %} declare parent_artist_id ...
+        # parent_artist_id = select artist_id from posts.artist_post where parent_post_id IS NOT NULL;
+        if parent_artist_id != NEW.artist_id:
+            raise exception.. {% endcomment %}
+        IF (SELECT count(*) FROM posts.artist_post_comment WHERE id=NEW.pinned_comment_id
+        AND is_ancestor=TRUE) = 1 THEN
+            RETURN NEW;
+        ELSE
+            RAISE EXCEPTION 'You can only pin an ancestor comment';
+        END IF;
+    END;
+    $repost_artist_post$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER repost_artist_post 
+BEFORE INSERT OR UPDATE OF artist_id ON posts.artist_post
+FOR EACH ROW 
+WHEN (NEW.parent_id IS NOT NULL)
+EXECUTE FUNCTION repost_artist_post();
+
+# select artist_id from posts.artist_post where parent_post_id IS NOT NULL;
+
