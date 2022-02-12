@@ -1,5 +1,6 @@
 import datetime
 import graphene
+from actstream.actions import follow, unfollow
 from django.contrib.auth import get_user_model, logout
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -15,10 +16,10 @@ from graphql_auth.utils import revoke_user_refresh_token
 from accounts.mixins import SendNewEmailActivationMixin, VerifyNewEmailMixin
 from accounts.models.users.models import Suspension
 from accounts.validators import UserUsernameValidator
-from flagging.graphql.types import *
-from flagging.models.models import FlagInstance
-# Import(implicitly register) all types
-from .types import *
+from flagging.graphql.types import FlagInstanceNode, FlagReason
+from notifications.models.models import Notification
+from notifications.signals import notify
+from .types import UserFollowNode, UserBlockingNode, SuspensionNode
 
 User = get_user_model()
 
@@ -143,8 +144,12 @@ class FollowUser(Output, graphene.ClientIDMutation):
     @classmethod
     @login_required
     def mutate_and_get_payload(cls, root, info, user_id):
-        user = info.context.user
-        follow_obj = user.follow_user(int(disambiguate_id(user_id)))
+        user, other_user_id = info.context.user, int(disambiguate_id(user_id))
+        other_user = User.objects.get(id=other_user_id)
+        follow_obj = user.follow_user(other_user)
+
+        # Add action
+        follow(user, other_user)
 
         return cls(user_follow=follow_obj)
 
@@ -158,8 +163,12 @@ class UnfollowUser(Output, graphene.ClientIDMutation):
     @classmethod
     @login_required
     def mutate_and_get_payload(cls, root, info, user_id):
-        user = info.context.user
-        deleted_obj_id = user.unfollow_user(int(disambiguate_id(user_id)))
+        user, other_user_id = info.context.user, int(disambiguate_id(user_id))
+        other_user = User.objects.get(id=other_user_id)
+        deleted_obj_id = user.unfollow_user(other_user)
+
+        # Remove activity
+        unfollow(user, other_user)
 
         return cls(follow_id=deleted_obj_id)
 
@@ -232,7 +241,7 @@ class ReactivateAccount(Output, graphene.ClientIDMutation):
 class FlagUser(Output, graphene.ClientIDMutation):
     class Input:
         flag_user_id = graphene.ID(required=True)
-        reason = graphene.Enum.from_enum(FlagInstance.FlagReason)
+        reason = FlagReason(required=True)
 
     flag_instance = graphene.Field(FlagInstanceNode)
 
@@ -248,10 +257,19 @@ class FlagUser(Output, graphene.ClientIDMutation):
                 extensions={'code': 'not_permitted'}
             )
 
-        flag_instance_obj = user.flag_object(User.active_users.get(id=flag_user_id), reason)
+        moderator = user
+        user_to_flag = User.active_users.get(id=flag_user_id)
+        flag_instance_obj = user.flag_object(user_to_flag, reason)
 
-        # TODO Notify staff
-
+        # Notify all staff
+        notify.send(
+            sender=moderator,  
+            recipient=User.staff, 
+            verb=_("Please go through this user's account. Thanks"),
+            target=user_to_flag,
+            action_object=flag_instance_obj,
+            category=Notification.REPORTED
+        )
 
         return cls(flag_instance=flag_instance_obj)
 

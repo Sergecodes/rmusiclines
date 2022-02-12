@@ -181,8 +181,31 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
 
     @classmethod
     @property
+    def superuser(cls):
+        return cls.objects.get(superuser=True)
+
+    @classmethod
+    @property
+    def main_site_account(cls):
+        # TODO Create a principal site account and update this
+        return cls.superuser
+
+    @classmethod
+    @property
+    def site_services_account(cls):
+        # TODO Create this account. It will be responsible for instance for 
+        # notifying users if needed; such as when their account if flagged...
+        return cls.superuser
+
+    @classmethod
+    @property
     def moderators(cls):
         return cls.objects.filter(is_mod=True)
+
+    @classmethod
+    @property
+    def staff(cls):
+        return cls.objects.filter(is_staff=True)
 
     @classmethod
     @property
@@ -321,6 +344,33 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
 
     class Meta:
         db_table = 'accounts\".\"user'
+		# Index names cannot be longer than 30 characters.
+        indexes = [
+			models.Index(
+				fields=['is_superuser'], 
+				name='user_is_superuser_idx'
+			),
+            models.Index(
+				fields=['is_staff'], 
+				name='user_is_staff_idx'
+			),
+            models.Index(
+				fields=['is_mod'], 
+				name='user_is_mod_idx'
+			),
+            models.Index(
+				fields=['is_active'], 
+				name='user_is_active_idx'
+			),
+            models.Index(
+				fields=['is_verified'], 
+				name='user_is_verified_idx'
+			),
+            models.Index(
+				fields=['is_premium'], 
+				name='user_is_premium_idx'
+			),
+		]
         constraints = [
             models.UniqueConstraint(
                 fields=['username'],

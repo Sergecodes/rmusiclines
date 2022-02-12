@@ -1,9 +1,7 @@
-from actstream import action
 from django.contrib.auth import get_user_model
 from django.db.models import F
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.utils.translation import gettext_lazy as _
 
 from posts.models.non_artist_posts.models import NonArtistPost, NonArtistPostComment
 from posts.utils import extract_hashtags, extract_mentions
@@ -34,52 +32,29 @@ def set_post_attributes(sender, instance, created, **kwargs):
                 for username in extract_mentions(post_content)
             ])
         
-        # Add action
         if created:
             # Increment user repost count
             poster.num_non_artist_posts = F('num_non_artist_posts') + 1
             poster.save(update_fields=['num_non_artist_posts'])
 
-            action.send(
-                poster,
-                verb=_('posted'),
-                target=post,
-            )
 
-    # If post is a repost
+    # Else If post is a repost
     else:
-        if post.is_simple_repost:
-            if created:
-                parent_post = post.parent
+        # If repost is newly created (it isn't an update...)
+        if created:
+            parent_post = post.parent
+
+            if post.is_simple_repost:
                 parent_post.num_simple_reposts = F('num_simple_reposts') + 1
                 parent_post.save(update_fields=['num_simple_reposts'])
 
-                action.send(
-                    poster,
-                    verb=_('shared'),  # Poster reposted post (poster shared post)
-                    target=parent_post,
-                    action_object=post
-                )
-
-        else:
-            if created:
-                parent_post = post.parent
+            else:
                 parent_post.num_non_simple_reposts = F('num_non_simple_reposts') + 1
                 parent_post.save(update_fields=['num_non_simple_reposts'])
-
-                action.send(
-                    poster,
-                    verb=_('reposted'), 
-                    target=parent_post,
-                    action_object=post
-                )
-
-        # Update user repost count
-        poster.num_non_artist_post_reposts = F('num_non_artist_post_reposts') + 1
-        poster.save(update_fields=['num_non_artist_post_reposts'])
-
-        # TODO Notify post owner of reposts...
-        
+            
+            # Update user repost count
+            poster.num_non_artist_post_reposts = F('num_non_artist_post_reposts') + 1
+            poster.save(update_fields=['num_non_artist_post_reposts'])
 
 
 @receiver(post_save, sender=NonArtistPostComment)
@@ -114,12 +89,4 @@ def set_comment_attributes(sender, instance: NonArtistPostComment, created, **kw
             ancestor = comment.ancestor
             ancestor.num_child_comments = F('num_child_comments') + 1
             ancestor.save(update_fields=['num_child_comments'])
-
-        # Add action
-        action.send(
-            comment.poster,
-            verb='commented on',
-            target=post,
-            action_object=comment
-        )
 

@@ -1,9 +1,9 @@
 from django.contrib.auth.models import Group
-from django.contrib.contenttypes.models import ContentType
 from django.db.models.query import QuerySet
 from django.dispatch import Signal
 from django.utils import timezone
 
+from core.utils import get_content_type
 from notifications.models.models import Notification
 
 
@@ -38,7 +38,7 @@ def notify_handler(verb, **kwargs):
     for recipient in recipients:
         newnotify = Notification(
             recipient=recipient,
-            actor_content_type=ContentType.objects.get_for_model(actor),
+            actor_content_type=get_content_type(actor),
             actor_object_id=actor.pk,
             verb=str(verb),
             description=description,
@@ -54,7 +54,7 @@ def notify_handler(verb, **kwargs):
                 setattr(
                     newnotify, 
                     '%s_content_type' % opt,
-                    ContentType.objects.get_for_model(obj)
+                    get_content_type(obj)
                 )
 
         newnotify.save()

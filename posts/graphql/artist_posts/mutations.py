@@ -1,4 +1,5 @@
 import graphene
+from actstream import action
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.utils.translation import gettext_lazy as _
@@ -10,6 +11,8 @@ from graphql_auth.decorators import login_required
 
 from core.constants import FILE_STORAGE_CLASS
 from flagging.graphql.types import FlagNode, FlagInstanceNode, FlagReason
+from notifications.models.models import Notification
+from notifications.signals import notify
 from posts.constants import (
     COMMENT_CAN_EDIT_TIME_LIMIT, POST_CAN_EDIT_TIME_LIMIT, 
     FORM_AND_UPLOAD_DIR
@@ -102,6 +105,19 @@ class CreateArtistPost(Output, DjangoCreateMutation):
             post.pinned_comment = comment
             post.save(update_fields=['pinned_comment'])
 
+        # Update activity stream
+        action.send(
+            poster,
+            verb=_('posted'),
+            target=post,
+        )
+
+        action.send(
+            post.artist,
+            verb=_('has new post'),
+            target=post
+        )
+
         return_data = {cls._meta.return_field_name: post}
         return cls(**return_data)
 
@@ -182,6 +198,13 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
                 artist=parent_post.artist
             )
 
+            action.send(
+                poster,
+                verb=_('shared'),  # Poster reposted post (poster shared post)
+                target=parent_post,
+                action_object=repost
+            )
+
         elif repost_type == REPOST_TYPE.NON_SIMPLE_REPOST:
             repost = ArtistPost.objects.create(
                 is_simple_repost=False,
@@ -189,6 +212,13 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
                 poster=poster,
                 parent=parent_post,
                 artist=parent_post.artist
+            )
+
+            action.send(
+                poster,
+                verb=_('reposted'), 
+                target=parent_post,
+                action_object=repost
             )
 
             # TODO add media in cache to post
@@ -202,6 +232,16 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
             )
             repost.pinned_comment = comment
             repost.save(update_fields=['pinned_comment'])
+        
+        # Notify parent post owner 
+        notify.send(
+            sender=poster,  
+            recipient=parent_post.poster, 
+            verb=_("reposted"),
+            target=parent_post,
+            action_object=repost,
+            category=Notification.REPOST
+        )
             
         return cls(repost=repost)
 
@@ -372,10 +412,31 @@ class RateArtistPost(Output, graphene.ClientIDMutation):
     @classmethod
     @login_required
     def mutate_and_get_payload(cls, root, info, post_id, num_stars):
-        user = info.context.user
-        created_obj = user.rate_artist_post(int(disambiguate_id(post_id)), num_stars)
+        user, post_id = info.context.user, int(disambiguate_id(post_id))
+        post = ArtistPost.objects.get(id=post_id)
+        poster = post.poster
+        rating_obj = user.rate_artist_post(post, num_stars)
 
-        return cls(post_rating=created_obj)
+        # Notify poster of post
+        notify.send(
+            sender=user,
+            recipient=poster, 
+            verb=_("rated your post"),
+            target=post,
+            action_object=rating_obj,
+            category=Notification.RATING
+        )
+
+        # Add this to activity stream if rating has 3 or 5 stars
+        if num_stars == RATING_STARS.THREE or num_stars == RATING_STARS.FIVE:
+            action.send(
+                user,
+                verb=_('rated'),  
+                target=post,
+                action_object=rating_obj
+            )
+
+        return cls(post_rating=rating_obj)
 
 
 class RemoveArtistPostRating(Output, graphene.ClientIDMutation):
@@ -408,11 +469,29 @@ class CreateArtistPostAncestorComment(Output, graphene.ClientIDMutation):
         validate_comment(comment_body)
 
         user, post_id = info.context.user, int(disambiguate_id(post_id))
+        post = ArtistPost.objects.get(id=post_id)
         comment = ArtistPostComment.objects.create(
-            post_concerned_id=post_id,
+            post_concerned_id=post,
             body=comment_body,
             poster=user,
             num_child_comments=0
+        )
+
+        # Notify poster of post
+        notify.send(
+            sender=user,
+            recipient=post.poster, 
+            verb=_("commented on"),
+            target=post,
+            category=Notification.COMMENT
+        )
+
+        # Send action
+        action.send(
+            user,
+            verb='commented on',
+            target=post,
+            action_object=comment
         )
 
         return cls(comment=comment)
@@ -474,7 +553,6 @@ class ReplyToArtistPostComment(Output, graphene.ClientIDMutation):
         validate_comment(reply_body)
 
         user, parent_comment_id = info.context.user, int(disambiguate_id(parent_comment_id))
-        print(parent_comment_id, type(parent_comment_id))
         parent_comment = ArtistPostComment.objects.get(id=parent_comment_id)
 
         reply = ArtistPostComment(
@@ -497,6 +575,16 @@ class ReplyToArtistPostComment(Output, graphene.ClientIDMutation):
         # instantiated the class before calling save().
         reply.refresh_from_db()
 
+        # Notify poster of parent comment
+        notify.send(
+            sender=user,
+            recipient=parent_comment.poster, 
+            verb=_("replied to your comment"),
+            target=parent_comment,
+            action_object=reply,
+            category=Notification.COMMENT_REPLY
+        )
+
         return cls(reply=reply)
 
 
@@ -509,10 +597,21 @@ class LikeArtistPostComment(Output, graphene.ClientIDMutation):
     @classmethod
     @login_required
     def mutate_and_get_payload(cls, root, info, comment_id):
-        user = info.context.user
-        created_obj = user.add_artist_post_comment_like(int(disambiguate_id(comment_id)))
+        user, comment_id = info.context.user, int(disambiguate_id(comment_id))
+        comment = ArtistPostComment.objects.get()
+        like_obj = user.add_artist_post_comment_like(comment)
 
-        return cls(comment_like=created_obj)
+        # Notify poster of comment
+        notify.send(
+            sender=user,
+            recipient=comment.poster, 
+            verb=_("liked your coment"),
+            target=comment,
+            action_object=like_obj,
+            category=Notification.COMMENT_LIKE
+        )
+
+        return cls(comment_like=like_obj)
 
 
 class RemoveArtistPostCommentLike(Output, graphene.ClientIDMutation):
@@ -643,4 +742,89 @@ class AbsolveArtistPostComment(Output, graphene.ClientIDMutation):
 
         return cls(flag=comment.flag)
 
+
+class DeleteFlaggedArtistPost(Output, graphene.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    post_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, post_id):
+        user, post_id = info.context.user, int(disambiguate_id(post_id))
+
+        # Only moderator can delete content
+        if not user.is_mod:
+            raise GraphQLError(
+                _("Only moderators can absolve posts"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        # Post should be flagged before moderator can delete it
+        post = ArtistPost.objects.get(id=post_id)
+        if not post.is_flagged:
+            raise GraphQLError(
+                _("Moderators can only delete flagged posts"),
+                extensions={'code': 'not_permitted'}
+            )
+        
+        poster = post.poster
+        deleted_obj_id = user.delete_artist_post(post)
+
+        # Notify poster of post
+        notify.send(
+            sender=poster,  # just use same user as sender
+            recipient=poster, 
+            verb=_(
+                "One of your posts has been deleted because it was considered "
+                "inappropriate. Please try to not post such content in the future. Thanks"
+            ),
+            category=Notification.FLAGGED_CONTENT_DELETED
+        )
+
+        return cls(post_id=deleted_obj_id)
+
+
+class DeleteFlaggedArtistPostComment(Output, graphene.ClientIDMutation):
+    class Input:
+        comment_id = graphene.ID(required=True)
+
+    comment_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, comment_id):
+        user, comment_id = info.context.user, int(disambiguate_id(comment_id))
+
+        # Only moderator can delete content
+        if not user.is_mod:
+            raise GraphQLError(
+                _("Only moderators can absolve posts"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        # comment should be flagged before moderator can delete it
+        comment = ArtistPostComment.objects.get(id=comment_id)
+        if not comment.is_flagged:
+            raise GraphQLError(
+                _("Moderators can only delete flagged posts"),
+                extensions={'code': 'not_permitted'}
+            )
+        
+        poster = comment.poster
+        deleted_obj_id = user.delete_artist_post_comment(comment)
+
+        # Notify poster of comment
+        notify.send(
+            sender=poster,  # just use same user as sender
+            recipient=poster, 
+            verb=_(
+                "One of your comments has been deleted because it was considered "
+                "inappropriate. Please try to not post such content in the future. Thanks"
+            ),
+            category=Notification.FLAGGED_CONTENT_DELETED
+        )
+
+        return cls(comment_id=deleted_obj_id)
 

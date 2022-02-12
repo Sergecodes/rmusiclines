@@ -89,11 +89,21 @@ class Post(models.Model, PostOperations):
 
 	@property
 	def is_parent(self):
-		return True if self.parent is None else False
+		return self.is_simple_repost is None
 
 	@property
 	def is_repost(self):
 		return not self.is_parent
+
+	# @property
+	# def ancestor(self):
+	# 	"""Get ancestor post. This will fail if parent post has been deleted."""
+	# 	ancestor, parent = None, self.parent
+	# 	while parent is not None:
+	# 		ancestor = parent
+	# 		parent = parent.parent
+
+	# 	return ancestor
 
 	@property
 	def ancestor_comments(self):

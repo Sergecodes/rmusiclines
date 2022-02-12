@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models
 from django.utils.translation import gettext_lazy as _
@@ -58,21 +59,32 @@ class FlagInstanceManager(models.Manager):
             raise err
 
     def create_flag(self, user, flag, reason):
+        User = get_user_model()
+        
         """
         Create a FlagInstance.
         Returns a dict {'created': bool} or raises ValidationError
         """
         # User shouldn't be able to flag his post.
-        # Use object.poster_id not object.poster.id so as to minimize query
         content_object = flag.content_object
 
-        if not hasattr(content_object, 'poster_id'):
+        # If a user account is about to be flagged
+        object_is_user = isinstance(content_object, User)
+
+        # If a post is about to be flagged
+        object_has_poster_id = hasattr(content_object, 'poster_id')
+
+        # Validate object that's about to be flagged 
+        # (should be user object or content with poster_id, let's say post)
+        if not object_has_poster_id and not object_is_user:
             raise ValidationError(
-                _("This object doesn't have a poster_id attribute"),
-                code='no_poster_id'
+                _("This object is not a User and doesn't have a poster_id attribute, hence can't be flagged"),
+                code='invalid'
             )
 
-        if content_object.poster_id == user.id:
+        # If user wants to flag his post
+        # (PS use object.poster_id not object.poster.id so as to minimize query)
+        if object_has_poster_id and content_object.poster_id == user.id:
             raise ValidationError(
                 _("You can't flag your own post"),
                 code="can't_flag_own_post"

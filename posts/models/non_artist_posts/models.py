@@ -31,7 +31,7 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 	)
 	parent = models.ForeignKey(
 		'self',
-		on_delete=models.CASCADE,
+		on_delete=models.SET_NULL,
 		related_name='reposts',
 		related_query_name='repost',
 		db_column='parent_post_id',

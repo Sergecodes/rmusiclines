@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from ..constants import IS_FLAGGED_COUNT
+from ..constants import CONTENT_IS_FLAGGED_COUNT
 
 
 class FlagOperations:
@@ -64,11 +64,11 @@ class FlagOperations:
         self.save()
 
     def toggle_flagged_state(self):
-        """Modify flag state if object if flagged (count is `IS_FLAGGED_COUNT`)"""
+        """Modify flag state if object if flagged (count is `CONTENT_IS_FLAGGED_COUNT`)"""
         self.refresh_from_db()
         field = 'state'
         
-        if self.count == IS_FLAGGED_COUNT and (
+        if self.count == CONTENT_IS_FLAGGED_COUNT and (
             getattr(self, field) not in [self.State.RESOLVED.value, self.State.REJECTED.value]
         ):
             setattr(self, field, self.State.FLAGGED.value)

@@ -1,7 +1,5 @@
 """Contains operations for the various models as mixins"""
 
-from actstream import action
-from actstream.actions import follow, unfollow
 from django.core.exceptions import ValidationError
 from django.db.models import F
 from django.utils import timezone
@@ -11,6 +9,8 @@ from accounts.constants import USERNAME_CHANGE_WAIT_PERIOD
 from accounts.models.artists.models import ArtistFollow
 from accounts.utils import get_user, get_artist
 from flagging.models.models import Flag, FlagInstance
+from notifications.models.models import Notification
+from notifications.signals import notify
 from posts.models.artist_posts.models import (
     ArtistPostBookmark, ArtistPostCommentLike, 
     ArtistPostDownload, ArtistPostRating, 
@@ -119,9 +119,6 @@ class UserOperations:
         artist.num_followers = F('num_followers') + 1
         artist.save(update_fields=['num_followers'])
 
-        # Add action
-        follow(self, artist)
-
         return follow_obj
 
     def unfollow_artist(self, artist_or_id):
@@ -132,9 +129,6 @@ class UserOperations:
 
         artist.num_followers = F('num_followers') - 1
         artist.save(update_fields=['num_followers'])
-
-        # Remove action
-        unfollow(self, artist)
 
         return follow_obj_id
 
@@ -155,10 +149,14 @@ class UserOperations:
         other.num_followers = F('num_followers') + 1
         other.save(update_fields=['num_followers'])
 
-        # Add action
-        follow(self, other)
-
-        # TODO Notify user
+        # Notify followed user (self followed other)
+        notify.send(
+            sender=self,  
+            recipient=other, 
+            verb=_("followed you"),
+            action_object=follow_obj,
+            category=Notification.FOLLOW
+        )
 
         return follow_obj
 
@@ -176,9 +174,6 @@ class UserOperations:
 
         other.num_followers = F('num_followers') - 1
         other.save(update_fields=['num_followers'])
-
-        # Remove action
-        unfollow(self, other)
 
         return follow_obj_id
 
@@ -403,14 +398,6 @@ class UserOperations:
         post.num_stars = F('num_stars') + num_stars
         post.save(update_fields=['num_stars']) 
 
-        # Add action
-        action.send(
-            self, 
-            verb=_('rated'),
-            target=post,
-            action_object=rating_obj
-        )
-
         return rating_obj
 
     def rate_non_artist_post(self, post_or_id, num_stars):
@@ -419,14 +406,6 @@ class UserOperations:
 
         post.num_stars = F('num_stars') + num_stars
         post.save(update_fields=['num_stars']) 
-
-        # Add action
-        action.send(
-            self, 
-            verb=_('rated'),
-            target=post,
-            action_object=rating_obj
-        )
 
         return rating_obj
 

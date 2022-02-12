@@ -1,3 +1,5 @@
+import graphene
+from actstream.actions import follow, unfollow
 from django.utils.translation import gettext_lazy as _
 from graphene import relay
 from graphene_django_cud.mutations import (
@@ -11,9 +13,7 @@ from graphql_auth.decorators import login_required
 
 from accounts.mixins import ArtistCUMutationMixin
 from accounts.models.artists.models import Artist
-# Though it seems like these types aren't used, however, we need to import them
-# cause it's implicitly used by graphene when registering mutations
-from .types import *
+from .types import ArtistFollowNode
 
 
 class CreateArtist(Output, DjangoCreateMutation):
@@ -86,8 +86,12 @@ class FollowArtist(Output, relay.ClientIDMutation):
     @classmethod
     @login_required
     def mutate_and_get_payload(cls, root, info, artist_id):
-        user = info.context.user
-        follow_obj = user.follow_artist(int(disambiguate_id(artist_id)))
+        user, artist_id = info.context.user, int(disambiguate_id(artist_id))
+        artist = Artist.objects.get(id=artist_id)
+        follow_obj = user.follow_artist(artist)
+
+        # Add action
+        follow(user, artist)
 
         return cls(artist_follow=follow_obj)
 
@@ -101,8 +105,12 @@ class UnfollowArtist(Output, relay.ClientIDMutation):
     @classmethod
     @login_required
     def mutate_and_get_payload(cls, root, info, artist_id):
-        user = info.context.user
-        deleted_obj_id = user.unfollow_artist(int(disambiguate_id(artist_id)))
+        user, artist_id = info.context.user, int(disambiguate_id(artist_id))
+        artist = Artist.objects.get(id=artist_id)
+        deleted_obj_id = user.unfollow_artist(artist)
+
+        # Remove action
+        unfollow(user, artist)
 
         return cls(follow_id=deleted_obj_id)
 

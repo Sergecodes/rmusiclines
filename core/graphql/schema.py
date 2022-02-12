@@ -21,7 +21,8 @@ from posts.graphql.artist_posts.mutations import (
     LikeArtistPostComment, RemoveArtistPostCommentLike, FlagArtistPost,
     UnflagArtistPost, FlagArtistPostComment, UnflagArtistPostComment,
     AbsolveArtistPost, AbsolveArtistPostComment, PinArtistPost,
-    PinArtistPostComment, UnpinPinnedArtistPost, UnpinPinnedArtistPostComment
+    PinArtistPostComment, UnpinPinnedArtistPost, UnpinPinnedArtistPostComment,
+    DeleteFlaggedArtistPost, DeleteFlaggedArtistPostComment
 )
 from posts.graphql.artist_posts.queries import (
     ArtistPostQuery, ArtistPostCommentQuery
@@ -93,6 +94,7 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     absolve_artist_post = AbsolveArtistPost.Field()
     pin_artist_post = PinArtistPost.Field()
     unpin_pinned_artist_post = UnpinPinnedArtistPost.Field()
+    delete_flagged_artist_post = DeleteFlaggedArtistPost.Field()
     
     ## Artist post comment mutations
     create_artist_post_ancestor_comment = CreateArtistPostAncestorComment.Field()
@@ -106,7 +108,7 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     absolve_artist_post_comment = AbsolveArtistPostComment.Field()
     pin_artist_post_comment = PinArtistPostComment.Field()
     unpin_pinned_artist_post_comment = UnpinPinnedArtistPostComment.Field()
-
+    delete_flagged_artist_post_comment = DeleteFlaggedArtistPostComment.Field()
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
