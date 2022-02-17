@@ -48,3 +48,7 @@ class RATING_STARS(graphene.Enum):
     FIVE = 5
 
 
+class PostFormFor(graphene.Enum):
+    ARTIST_POST = "artist_post"
+    NON_ARTIST_POST = "non_artist_post"
+

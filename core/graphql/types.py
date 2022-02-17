@@ -1,14 +1,5 @@
-import graphene
+# import graphene
 # from graphene_django.converter import convert_choices_to_named_enum_with_descriptions
-
-from core.constants import ImageFormEnum as IMAGE_FORM_ENUM
-
-
-class ImageFormEnum(graphene.Enum):
-    class Meta:
-        enum = IMAGE_FORM_ENUM
-        description = IMAGE_FORM_ENUM.__doc__
-
 
 
 

@@ -1,8 +1,5 @@
 """This file contains all the constants that will be used in this app"""
-# import enum
 from datetime import timedelta
-
-from core.constants import ImageFormEnum as FormForEnum
 
 
 # class REPOST_TYPE(enum.Enum):
@@ -32,7 +29,10 @@ NON_ARTIST_POSTS_VIDEOS_UPLOAD_DIR = 'non_artist_posts_videos/'
 
 # Initialise form upload dict(map form type to upload directory)
 FORM_AND_UPLOAD_DIR = {
-    FormForEnum.ARTIST_POST_PHOTO.value: ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-    FormForEnum.NON_ARTIST_POST_PHOTO.value: NON_ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
+    'artist_post_photo': ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
+    'non_artist_post_photo': NON_ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
+    'artist_post_video': ARTIST_POSTS_VIDEOS_UPLOAD_DIR,
+    'non_artist_post_video': NON_ARTIST_POSTS_VIDEOS_UPLOAD_DIR,
+
 }
 

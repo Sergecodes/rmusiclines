@@ -23,14 +23,14 @@ File sizes:
 def validate_post_photo_file(photo_file):
     """
     Validate photo file
-    - Max size: 5mb
+    - Max size: 20mb
     - Types: png, jpg, gif
 
     :param `photo_file`: File object
     """
     # TODO Also validate photo on server level(nginx, ...) before sending to django
 
-    MAX_PHOTO_SIZE = 5242880
+    MAX_PHOTO_SIZE = 20971520
     VALID_CONTENT_TYPES = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif']
     file = photo_file
 
@@ -119,7 +119,7 @@ def validate_post_video_file(video_file):
         )
 
 
-def validate_cache_media(new_file, cache_photos_key, cache_video_key):
+def validate_cache_media(new_file, cache_photos_key: str, cache_video_key: str):
     """
     Validate cache media; cache can only contain either only a GIF or only a video or a given
     maximum number of photos. 
@@ -136,6 +136,8 @@ def validate_cache_media(new_file, cache_photos_key, cache_video_key):
     
     # Validate photos length
     photos_list = cache.get(cache_photos_key, [])
+    print('Photos in cache before upload: ', len(photos_list))
+
     if len(photos_list) == MAX_NUM_PHOTOS:
         raise GraphQLError(
             _('Maximum number of photos attained'),

@@ -35,6 +35,7 @@ after 15 days before they can change it again.
 - language of post should be auto detected
 - max length of comments should be 2000chars, just so user doesnt abuse the length; and
 for posts should be 350 chars.
+- 
 
 
 # add to database specification 
@@ -54,6 +55,8 @@ for posts should be 350 chars.
 - separate section on site for videos(like facebook). Better still, there can be a section 
 for videos where only posts with videos(and photos/gifs ?) will be displayed. 
 Then on the home page all kinds of posts are displayed, or perhaps only non video posts..?.
+- We should have a verified account on the site, that by default all users will follow.
+This account will choose a random post and repost daily. xD 
 
 
 ADDITIONS:
