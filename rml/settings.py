@@ -25,9 +25,28 @@ SITE_ID = 1
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
 SECRET_KEY = config('SECRET_KEY')
-USE_PROD_DB = config('USE_PROD_DB', cast=bool)
-USE_S3 = config('USE_S3', default=False, cast=bool)
 USE_CONSOLE_EMAIL = config('USE_CONSOLE_EMAIL', default=True, cast=bool)
+
+# DB
+USE_PROD_DB = config('USE_PROD_DB', cast=bool)
+DB_USER = config('DB_USER')
+DB_NAME = config('DB_NAME')
+DB_PASSWORD = config('DB_PASSWORD')
+DB_HOST = config('DB_HOST')
+DB_PORT = config('DB_PORT')
+
+# AWS
+USE_S3 = config('USE_S3', default=False, cast=bool)
+USE_AWS_VIDEO_ENCODER = config('USE_AWS_VIDEO_ENCODER')
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+
+# Misc
+CONTENT_IS_FLAGGED_COUNT = config('CONTENT_IS_FLAGGED_COUNT', cast=int)
+USER_IS_FLAGGED_COUNT = config('USER_IS_FLAGGED_COUNT', cast=int)
+AUTO_DELETE_FLAGS_COUNT = config('AUTO_DELETE_FLAGS_COUNT', cast=int)
+AUTO_SUSPEND_USER_ACCOUNT_FLAGS_COUNT = config('AUTO_SUSPEND_USER_ACCOUNT_FLAGS_COUNT', cast=int)
 
 
 # Database
@@ -44,66 +63,66 @@ else:
 				# Use `django` schema so as not to polute public schema
 				'options': '-c search_path=django,public'
 			},
-			'NAME': config('DB_NAME'),
-			'USER': config('DB_USER'),
-			'PASSWORD': config('DB_PASSWORD'),
-			'HOST': config('DB_HOST'),
-			'PORT': '5432',
+			'NAME': DB_NAME,
+			'USER': DB_USER,
+			'PASSWORD': DB_PASSWORD,
+			'HOST': DB_HOST,
+			'PORT': DB_PORT,
 		},
 		'accounts': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
 			'OPTIONS': {
 				'options': '-c search_path=accounts,public'
 			},
-			'NAME': config('DB_NAME'),
-			'USER': config('DB_USER'),
-			'PASSWORD': config('DB_PASSWORD'),
-			'HOST': config('DB_HOST'),
-			'PORT': '5432',
+			'NAME': DB_NAME,
+			'USER': DB_USER,
+			'PASSWORD': DB_PASSWORD,
+			'HOST': DB_HOST,
+			'PORT': DB_PORT,
 		},
 		'posts': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
 			'OPTIONS': {
 				'options': '-c search_path=posts,public'
 			},
-			'NAME': config('DB_NAME'),
-			'USER': config('DB_USER'),
-			'PASSWORD': config('DB_PASSWORD'),
-			'HOST': config('DB_HOST'),
-			'PORT': '5432',
+			'NAME': DB_NAME,
+			'USER': DB_USER,
+			'PASSWORD': DB_PASSWORD,
+			'HOST': DB_HOST,
+			'PORT': DB_PORT,
 		},
 		'notifications': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
 			'OPTIONS': {
 				'options': '-c search_path=notifications,public'
 			},
-			'NAME': config('DB_NAME'),
-			'USER': config('DB_USER'),
-			'PASSWORD': config('DB_PASSWORD'),
-			'HOST': config('DB_HOST'),
-			'PORT': '5432',
+			'NAME': DB_NAME,
+			'USER': DB_USER,
+			'PASSWORD': DB_PASSWORD,
+			'HOST': DB_HOST,
+			'PORT': DB_PORT,
 		},
 		'flagging': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
 			'OPTIONS': {
 				'options': '-c search_path=flagging,public'
 			},
-			'NAME': config('DB_NAME'),
-			'USER': config('DB_USER'),
-			'PASSWORD': config('DB_PASSWORD'),
-			'HOST': config('DB_HOST'),
-			'PORT': '5432',
+			'NAME': DB_NAME,
+			'USER': DB_USER,
+			'PASSWORD': DB_PASSWORD,
+			'HOST': DB_HOST,
+			'PORT': DB_PORT,
 		},
 		'subscriptions': {
 			'ENGINE': 'django.db.backends.postgresql_psycopg2',
 			'OPTIONS': {
 				'options': '-c search_path=subscriptions,public'
 			},
-			'NAME': config('DB_NAME'),
-			'USER': config('DB_USER'),
-			'PASSWORD': config('DB_PASSWORD'),
-			'HOST': config('DB_HOST'),
-			'PORT': '5432',
+			'NAME': DB_NAME,
+			'USER': DB_USER,
+			'PASSWORD': DB_PASSWORD,
+			'HOST': DB_HOST,
+			'PORT': DB_PORT,
 		}
 	}
 
@@ -289,6 +308,7 @@ if USE_S3:
 	# s3 public media settings
 	PUBLIC_MEDIA_LOCATION_ = 'media'
 	MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN_}/{PUBLIC_MEDIA_LOCATION_}/'
+	MEDIA_ROOT = MEDIA_URL
 	DEFAULT_FILE_STORAGE = 'core.storages.PublicMediaStorage'
 
 	# # s3 private media settings

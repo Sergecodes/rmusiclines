@@ -28,8 +28,9 @@ from posts.graphql.artist_posts.queries import (
     ArtistPostQuery, ArtistPostCommentQuery
 )
 from posts.graphql.common.mutations import (
-    DeleteImageMutation, SingleImageUploadMutation, 
-    MultipleImageUploadMutation
+    DeleteImageMutation, MultipleImageUploadMutation,
+    VideoUploadMutation, DeleteUploadedVideoMutation,
+    AudioUploadMutation
 )
 from posts.graphql.non_artist_posts.queries import (
     NonArtistPostQuery, 
@@ -51,9 +52,11 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     debug = graphene.Field(DjangoDebug, name='_debug')
     
     ## Post Upload mutations
-    single_image_upload = SingleImageUploadMutation.Field()
-    multiple_image_upload = MultipleImageUploadMutation.Field()
+    image_upload = MultipleImageUploadMutation.Field()
     delete_image = DeleteImageMutation.Field()
+    video_upload = VideoUploadMutation.Field()
+    delete_video = DeleteUploadedVideoMutation.Field()
+    audio_upload = AudioUploadMutation.Field()
 
     ## Extra user mutations
     patch_user = PatchUser.Field()

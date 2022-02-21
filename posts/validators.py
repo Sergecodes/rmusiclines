@@ -4,8 +4,9 @@ from django.template.defaultfilters import filesizeformat
 from django.utils.translation import gettext_lazy as _
 from graphql import GraphQLError
 
+from core.utils import get_file_extension
 from posts.constants import MAX_NUM_PHOTOS
-from .utils import get_video_duration, get_video_resolution
+from .utils import get_video_duration, get_audio_duration, get_video_resolution
 
 '''
 File sizes:
@@ -15,8 +16,8 @@ File sizes:
     20MB - 20971520
     50MB - 52428800
     100MB - 104857600
-    250MB - 214958080
-    500MB - 429916160
+    250MB - 262144000
+    500MB - 524288000
 '''
 
 
@@ -36,7 +37,21 @@ def validate_post_photo_file(photo_file):
 
     try:
         content_type = file.content_type
+
         if content_type in VALID_CONTENT_TYPES:
+            # Verify if content type is same as extension. If it's not the same, that means
+            # someone has surely tampered with the file extension(renamed it).
+            if content_type in ['image/jpg', 'image/jpeg']:
+                ctype_ext = 'jpg'
+            else:
+                ctype_ext = content_type.split('/')[-1]
+
+            if ctype_ext != get_file_extension(file):
+                raise ValidationError(
+                    _("Corrupt file, content type doesn't match with extension"),
+                    code='corrupt_file'
+                )
+
             if (file_size := file.size) > MAX_PHOTO_SIZE:
                 raise ValidationError(
                     _('Please keep filesize under %(max_photo_size)s. Current filesize %(photo_size)s'),
@@ -48,11 +63,68 @@ def validate_post_photo_file(photo_file):
                 )
         else:
             raise ValidationError(
-                _('Filetype not supported.'),
-                code='invalid'
+                _('Filetype %(ctype)s not supported.'),
+                code='invalid',
+                params={'ctype': content_type}
             )
     except AttributeError:
         pass
+
+
+def validate_post_audio_file(audio_file):
+    """
+    Validate audio file
+    - Max size: 10mb
+    - Max duration: 3minutes(180)
+    - Types: mp3
+
+    :param `audio_file`: File object
+    """
+
+    MAX_AUDIO_SIZE, MAX_DURATION = 10485760, 180
+    VALID_CONTENT_TYPES = ['audio/mpeg']
+    audio = audio_file
+    
+    content_type = audio.content_type
+    if content_type in VALID_CONTENT_TYPES:
+        # Ensure file extension hasn't been tampered with.
+        
+        # Use mp3 since we only have audio/mpeg which corresponds to mp3
+        ctype_ext = 'mp3'  
+        if ctype_ext != get_file_extension(audio):
+            raise ValidationError(
+                _("Corrupt file, content type doesn't match with extension"),
+                code='corrupt_file'
+            )
+
+        if (file_size := audio.size) > MAX_AUDIO_SIZE:
+            raise ValidationError(
+                _('Please keep filesize under %(max_audio_size)s. Current filesize %(audio_size)s'),
+                code='large_file',
+                params={
+                    'max_audio_size': filesizeformat(MAX_AUDIO_SIZE),
+                    'audio_size': filesizeformat(file_size)
+                }
+            )
+    else:
+        raise ValidationError(
+            _('Filetype %(ctype)s not supported.'),
+            code='invalid',
+            params={'ctype': content_type}
+        )
+
+    # Validate duration
+    duration, video_time = get_audio_duration(audio)
+    if duration > MAX_DURATION:
+        raise ValidationError(
+            _('Please keep duration under %(max_duration)s. Current duration %(duration)s and video time %(time)s'),
+            code='invalid',
+            params={
+                'max_duration': MAX_DURATION,
+                'duration': duration,
+                'time': video_time
+            }
+        )
 
 
 def validate_post_video_file(video_file):
@@ -67,42 +139,35 @@ def validate_post_video_file(video_file):
     :param `video_file`: File object
     """
 
-    MAX_VIDEO_SIZE, MAX_DURATION = 214958080, 360
-    MIN_RESOLUTION, MAX_RESOLUTION = (32, 32), (1920, 1920)
+    MAX_VIDEO_SIZE, MAX_DURATION = 262144000, 360
+    MIN_RESOLUTION, MAX_RESOLUTION = [32, 32], [1920, 1920]
     VALID_CONTENT_TYPES = ['video/mp4', 'video/mov']
     video = video_file
     
-    try:
-        content_type = video.content_type
-        if content_type in VALID_CONTENT_TYPES:
-            if (file_size := video.size) > MAX_VIDEO_SIZE:
-                raise ValidationError(
-                    _('Please keep filesize under %(max_video_size)s. Current filesize %(video_size)s'),
-                    code='large_file',
-                    params={
-                        'max_video_size': filesizeformat(MAX_VIDEO_SIZE),
-                        'video_size': filesizeformat(file_size)
-                    }
-                )
-        else:
+    content_type = video.content_type
+    if content_type in VALID_CONTENT_TYPES:
+        # Ensure content type matches extension
+        ctype_ext = content_type.split('/')[-1]
+        if ctype_ext != get_file_extension(video):
             raise ValidationError(
-                _('Filetype not supported.'),
-                code='invalid'
+                _("Corrupt file, content type doesn't match with extension"),
+                code='corrupt_file'
             )
-    except AttributeError:
-        pass
 
-    # Validate video duration
-    duration, video_time = get_video_duration(video)
-    if duration > MAX_DURATION:
+        if (file_size := video.size) > MAX_VIDEO_SIZE:
+            raise ValidationError(
+                _('Please keep filesize under %(max_video_size)s. Current filesize %(video_size)s'),
+                code='large_file',
+                params={
+                    'max_video_size': filesizeformat(MAX_VIDEO_SIZE),
+                    'video_size': filesizeformat(file_size)
+                }
+            )
+    else:
         raise ValidationError(
-            _('Please keep duration under %(max_duration)s. Current duration %(duration)s and video time %(time)s'),
+            _('Filetype %(ctype)s not supported.'),
             code='invalid',
-            params={
-                'max_duration': MAX_DURATION,
-                'duration': duration,
-                'time': video_time
-            }
+            params={'ctype': content_type}
         )
 
     # Validate resolution
@@ -118,41 +183,50 @@ def validate_post_video_file(video_file):
             }
         )
 
+    # Validate video duration
+    # duration, video_time = get_video_duration(video)
+    # if duration > MAX_DURATION:
+    #     raise ValidationError(
+    #         _('Please keep duration under %(max_duration)s. Current duration %(duration)s and video time %(time)s'),
+    #         code='invalid',
+    #         params={
+    #             'max_duration': MAX_DURATION,
+    #             'duration': duration,
+    #             'time': video_time
+    #         }
+    #     )
 
-def validate_cache_media(new_file, cache_photos_key: str, cache_video_key: str):
+
+def validate_cache_media(cache_photos_key: str, cache_video_key: str):
     """
     Validate cache media; cache can only contain either only a GIF or only a video or a given
     maximum number of photos. 
     This function verifies if we can go ahead and upload a media file and it is use in the file
     upload mutations.
     """
-    file_content_type = new_file.content_type
 
     # Verify if video is present
-    # TODO
+    video_dict = cache.get(cache_video_key, {})
+    if video_dict:
+        raise GraphQLError(
+            _('Video already uploaded'),
+            extensions={'code': 'invalid'}
+        )
+
+    photos_list = cache.get(cache_photos_key, [])
 
     # Verify if GIF is present
-    # TODO
+    photo_extensions = [get_file_extension(photo_dict['filename']) for photo_dict in photos_list]
+    if 'gif' in photo_extensions:
+        raise GraphQLError(
+            _('GIF already uploaded'),
+            extensions={'code': 'invalid'}
+        )
     
     # Validate photos length
-    photos_list = cache.get(cache_photos_key, [])
-    print('Photos in cache before upload: ', len(photos_list))
-
     if len(photos_list) == MAX_NUM_PHOTOS:
         raise GraphQLError(
             _('Maximum number of photos attained'),
             extensions={'code': 'max_photos_attained'}
         )
-
-
-
-# def validate_post_photo(post_photo):
-#     """Validate post photo instance"""
-#     validate_post_photo_file(post_photo.file)
-
-
-# def validate_post_video(post_video):
-#     """Validate post video instance"""
-#     validate_post_video_file(post_video.file)
-
 

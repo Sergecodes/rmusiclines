@@ -12,11 +12,30 @@ from accounts.models.artists.models import Artist
 from core.constants import FILE_STORAGE_CLASS
 from core.fields import DynamicStorageFileField
 from core.mixins import UsesCustomSignal
+from posts.mixins import PostMediaMixin
 from flagging.mixins import FlagMixin
-from posts.constants import ARTIST_POSTS_PHOTOS_UPLOAD_DIR, ARTIST_POSTS_VIDEOS_UPLOAD_DIR
+from posts.constants import ARTIST_POST_PHOTO_UPLOAD_DIR, ARTIST_POST_VIDEO_UPLOAD_DIR
 from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import ArtistPostOperations
 from ..common.models import Post, PostHashtag, PostRating, Comment, CommentLike
+
+
+def artist_post_photo_upload_path(instance, filename):
+    # File will be uploaded to MEDIA_ROOT/users/user_<id>/artist_posts_photos/<filename>
+    return 'users/user_{0}/{1}/{2}'.format(
+		instance.post.poster_id, 
+		ARTIST_POST_PHOTO_UPLOAD_DIR,
+		filename
+	)
+
+
+def artist_post_video_upload_path(instance, filename):
+    # File will be uploaded to MEDIA_ROOT/user_<id>/artist_posts_videos/<filename>
+    return 'users/user_{0}/{1}/{2}'.format(
+		instance.post.poster_id, 
+		ARTIST_POST_VIDEO_UPLOAD_DIR,
+		filename
+	)
 
 
 class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
@@ -125,7 +144,7 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		# ]
 
 
-class ArtistPostPhoto(models.Model):
+class ArtistPostPhoto(models.Model, PostMediaMixin):
 	post = models.ForeignKey(
 		ArtistPost,
 		verbose_name=_('Post'),
@@ -138,8 +157,8 @@ class ArtistPostPhoto(models.Model):
 	# Use width_field and height_field to optimize getting photo's width and height
 	photo = ThumbnailerImageField(
 		thumbnail_storage=FILE_STORAGE_CLASS(), 
-		upload_to=ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-		resize_source=dict(size=(1000, 1000), sharpen=True),
+		upload_to=artist_post_photo_upload_path,
+		resize_source=dict(size=(250, 250), sharpen=True),
 		validators=[
 			FileExtensionValidator(['png, jpg, gif']), 
 			validate_post_photo_file
@@ -157,7 +176,7 @@ class ArtistPostPhoto(models.Model):
 		db_table = 'posts\".\"artist_post_photo'
 
 	
-class ArtistPostVideo(models.Model):
+class ArtistPostVideo(models.Model, PostMediaMixin):
 	post = models.OneToOneField(
 		ArtistPost,
 		verbose_name=_('Post'),
@@ -167,13 +186,17 @@ class ArtistPostVideo(models.Model):
 		related_query_name='video'
 	)
 	video = DynamicStorageFileField(
-		upload_to=ARTIST_POSTS_VIDEOS_UPLOAD_DIR, 
+		# Depending on whether this video was first an audio, we'll know the directory to upload to.
+		# But by default, upload all videos to this directory.
+		upload_to=artist_post_video_upload_path, 
 		validators=[
 			FileExtensionValidator(['mp4', 'mov']), 
 			validate_post_video_file
-		],
-		blank=True
+		]
 	)
+	# Since users can post audio that will ultimately be converted to video,
+	# this attribute is to determine whether or not the uploaded file was an audio.
+	was_audio = models.BooleanField(editable=False, default=False)
 
 	def __str__(self):
 		return f'Post {str(self.post)} video'

@@ -1,10 +1,17 @@
 """Contains project-wide utilities"""
 import ffmpeg
 import os
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.uploadedfile import TemporaryUploadedFile, InMemoryUploadedFile
 from django.utils.translation import gettext_lazy as _
 from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
+
+from core.constants import FILE_STORAGE_CLASS
+from posts.constants import TEMP_FILES_UPLOAD_DIR
+
+STORAGE = FILE_STORAGE_CLASS()
 
 
 def get_content_type(model_obj):
@@ -12,6 +19,38 @@ def get_content_type(model_obj):
     
     return ContentType.objects.get_for_model(model_obj)
 
+
+def get_file_path(file):
+    """
+    Get file path of file object or uploaded file. If `uploaded_file` is in 
+    memory(InMemoryUploadedFile), save it to a temporary folder and return that path.
+    """
+    if isinstance(file, TemporaryUploadedFile):
+        print("temporary uploaded file")
+        path = file.temporary_file_path()
+    elif isinstance(file, InMemoryUploadedFile):
+        print('in memory uploaded file')
+        # Store file in temporary directory first
+        path = os.path.join(settings.MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, file.name)
+
+        # If file doesn't exist, save it 
+        if not STORAGE.exists(path):
+            print('file does not exist, saving it')
+
+            with STORAGE.open(path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+    else:
+        path = file.path
+
+    print(path)
+    return path
+
+
+def get_file_extension(file)-> str:
+    """Return file extension"""
+    return file.name.split('.')[-1].lower()
+    
 
 def get_int_id_or_none(id):
     """
@@ -32,23 +71,23 @@ def get_image_file_thumbnail_extension_and_type(file):
     Used in image upload mutations.
     """
     
-    thumb_name, thumb_extension = os.path.splitext(file.name)
-    thumb_extension = thumb_extension.lower()
+    # thumb_name, thumb_extension = os.path.splitext(file.name)
+    thumb_extension = get_file_extension(file)
 
     # Yes, the file types returned should be in uppercase
-    if thumb_extension in ['.jpg', '.jpeg']:
-        FTYPE = 'JPEG'
-    elif thumb_extension == '.gif':
-        FTYPE = 'GIF'
-    elif thumb_extension == '.png':
-        FTYPE = 'PNG'
+    if thumb_extension in ['jpg', 'jpeg']:
+        file_type = 'JPEG'
+    elif thumb_extension == 'gif':
+        file_type = 'GIF'
+    elif thumb_extension == 'png':
+        file_type = 'PNG'
     else:
         raise GraphQLError(
             _('Weird, unrecognized file type'),
             extensions={'code': 'invalid_image'}
         )
 
-    return thumb_extension, FTYPE
+    return thumb_extension, file_type
 
 
 def get_user_cache_keys(username: str):

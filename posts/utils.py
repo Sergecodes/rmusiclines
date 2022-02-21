@@ -1,10 +1,12 @@
 """This file contains utility functions"""
 
-import cv2
 import datetime
 import re
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+from moviepy.editor import VideoFileClip, AudioFileClip
+
+from core.utils import get_file_path
 
 
 def extract_hashtags(text)-> list:
@@ -31,22 +33,31 @@ def extract_mentions(text)-> list:
     return usernames
 
 
+def get_audio_duration(audio)-> tuple[int, str]:
+    """
+    Get duration of `audio` in seconds and audio_time.
+    `audio`: audio File object
+    """
+    duration = round(AudioFileClip(get_file_path(audio)).duration)
+
+    # Calculate time of audio eg. 0:00:28
+    audio_time = str(datetime.timedelta(seconds=duration))  
+
+    return duration, audio_time
+
+
 def get_video_duration(video)-> tuple[int, str]:
     """
     Get duration of `video` in seconds and video_time.
     `video`: video File object
     """
-     
-    capture_obj = cv2.VideoCapture(video)
-    frames = capture_obj.get(cv2.CAP_PROP_FRAME_COUNT)
-    fps = int(capture_obj.get(cv2.CAP_PROP_FPS))
 
-    # Calculate duration of video in seconds
-    duration = frames // fps
+    duration = round(VideoFileClip(get_file_path(video)).duration)
+
     # Calculate time of video eg. 0:00:28
     video_time = str(datetime.timedelta(seconds=duration))  
 
-    return (duration, video_time)
+    return duration, video_time
 
 
 def get_video_resolution(video)-> tuple[int, int]:
@@ -54,11 +65,7 @@ def get_video_resolution(video)-> tuple[int, int]:
     Get resolution(width, height) of video
     `video`: video File object
     """
-    capture_obj = cv2.VideoCapture(video)
-    width = capture_obj.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = capture_obj.get(cv2.CAP_PROP_FRAME_HEIGHT)
-
-    return (width, height)
+    return VideoFileClip(get_file_path(video)).size
 
 
 def get_artist_post(post_or_id):

@@ -1,12 +1,10 @@
-"""For common / core mutations"""
-
 import base64
 import graphene
+import os
 import uuid
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.utils.translation import gettext_lazy as _
 from graphene_file_upload.scalars import Upload
 from graphql import GraphQLError
@@ -14,112 +12,30 @@ from graphql_auth.bases import Output
 from graphql_auth.decorators import login_required
 from io import BytesIO
 from PIL import Image
+from pydub import AudioSegment
+import subprocess
 
 from core.constants import FILE_STORAGE_CLASS
-from core.utils import get_image_file_thumbnail_extension_and_type, get_user_cache_keys
-from posts.constants import MAX_NUM_PHOTOS
-from posts.graphql.common.types import PostFormFor
+from core.utils import (
+    get_file_extension, get_user_cache_keys,
+    get_image_file_thumbnail_extension_and_type, get_file_path
+)
+from posts.constants import MAX_NUM_PHOTOS, TEMP_FILES_UPLOAD_DIR
 from posts.validators import (
     validate_post_photo_file, validate_cache_media,
-    validate_post_video_file
+    validate_post_video_file, validate_post_audio_file
 )
 
 STORAGE = FILE_STORAGE_CLASS()
+MEDIA_ROOT = settings.MEDIA_ROOT
 THUMBNAIL_ALIASES = settings.THUMBNAIL_ALIASES
 
-
-class SingleImageUploadMutation(Output, graphene.Mutation):
-    """Upload an image"""
-
-    class Arguments:
-        file = Upload(required=True)
-        form_for = PostFormFor(required=True)
-
-    filename = graphene.String()
-    base64_str = graphene.String()
-    mimetype = graphene.String()
-     
-    @classmethod
-    @login_required
-    def mutate(cls, root, info, file: InMemoryUploadedFile, form_for, **kwargs):
-        # print(info.context.FILES)
-        # form = ArtistPhotoForm({'photo': file})
-        # print(form.data)
-        # print(form.is_valid())
-
-        user_cache_keys = get_user_cache_keys(info.context.user.username)
-        cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
-
-        # Validate cache content
-        validate_cache_media(file, cache_photos_key, cache_video_key)
-
-        try:
-            validate_post_photo_file(file)
-        except ValidationError as err:
-            raise GraphQLError(
-                err.message % (err.params or {}),
-                extensions={'code': err.code}
-            )
-
-        # Use None so this value stays in the cache indefinitely, till explicitly deleted
-        # (or server restarts xD)
-        cache_key = cache_photos_key
-        user_photos_list = cache.get_or_set(cache_key, [], None)
-
-        ## Save file to cache
-        # Get name without extension
-        # valid_filename = STORAGE.get_valid_name(file.name).split('.')[0]
-
-        # Get file extension and type to use with PIL
-        file_extension, ftype = get_image_file_thumbnail_extension_and_type(file)
-
-        # Save thumbnail to in-memory file as StringIO
-        image = Image.open(file)
-        # image = image.convert('RGB')
-        image.thumbnail(THUMBNAIL_ALIASES['']['sm_thumb']['size'], Image.ANTIALIAS)
-        thumb_file = BytesIO()
-        image.save(thumb_file, format=ftype)
-
-        # Use random uuid as filename so as to protect user privacy; and besides we don't
-        # really need the file name.
-        use_filename = str(uuid.uuid4()) + file_extension
-        # thumb_file.seek(0)
-
-        # Will be used with ContentFile to regenerate the file so as to save to
-        # model object when posting a post
-            # from django.core.files.base import ContentFile
-            # img_file = ContentFile(img_io.getvalue())
-            # saved_file_name = STORAGE.save(save_dir + valid_name, img_file)
-
-        file_bytes = thumb_file.getvalue()
-        base64_bytes = base64.b64encode(file_bytes)
-        base64_str = base64_bytes.decode('utf-8')
-        mimetype = file.content_type
-        # save_dir = FORM_AND_UPLOAD_DIR[form_for]
-        # saved_filename = STORAGE.save(save_dir + use_filename, file)
-
-        print(file.size, thumb_file.tell())
-        user_photos_list.append({
-            'file_bytes': file_bytes,
-            'filename': use_filename,
-            'mimetype': mimetype
-        })
-        cache.set(cache_key, user_photos_list)
-        thumb_file.close()
-
-        return SingleImageUploadMutation(
-            base64_str=base64_str,
-            filename=use_filename,
-            mimetype=mimetype
-        )
-       
         
 class MultipleImageUploadMutation(Output, graphene.Mutation):
     """Upload multiple images at once"""
 
     class Arguments:
         files = graphene.List(Upload, required=True)
-        form_for = PostFormFor(required=True)
 
     filenames = graphene.List(graphene.String)
     base64_strs = graphene.List(graphene.String)
@@ -127,13 +43,13 @@ class MultipleImageUploadMutation(Output, graphene.Mutation):
      
     @classmethod
     @login_required
-    def mutate(cls, root, info, files: list[InMemoryUploadedFile], form_for, **kwargs):
+    def mutate(cls, root, info, files: list, **kwargs):
         user_cache_keys = get_user_cache_keys(info.context.user.username)
         cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
 
         # Validate cache content and uploaded file
         for file in files:
-            validate_cache_media(file, cache_photos_key, cache_video_key)
+            validate_cache_media(cache_photos_key, cache_video_key)
 
             try:
                 validate_post_photo_file(file)
@@ -168,7 +84,7 @@ class MultipleImageUploadMutation(Output, graphene.Mutation):
             thumb_file = BytesIO()
             image.save(thumb_file, format=ftype)
             
-            use_filename = str(uuid.uuid4()) + file_extension
+            use_filename = str(uuid.uuid4()) + '.' + file_extension
             mimetype = file.content_type
             file_bytes = thumb_file.getvalue()
             base64_bytes = base64.b64encode(file_bytes)
@@ -199,11 +115,10 @@ class DeleteImageMutation(Output, graphene.Mutation):
 
     class Arguments:
         filename = graphene.String()
-        form_for = PostFormFor(required=True)
 
     @classmethod
     @login_required
-    def mutate(cls, root, info, filename, form_for, **kwargs):
+    def mutate(cls, root, info, filename, **kwargs):
         user_cache_keys = get_user_cache_keys(info.context.user.username)
         cache_key = user_cache_keys['photos']
 
@@ -232,85 +147,176 @@ class DeleteImageMutation(Output, graphene.Mutation):
         return DeleteImageMutation(success=True)
 
 
-# class VideoUploadMutation(Output, graphene.Mutation):
-#     """Upload a video"""
+class VideoUploadMutation(Output, graphene.Mutation):
+    """
+    Upload a video.
+    Flow:
+        - Video is uploaded to backend. 
+        - If AWS Elastic video transcoder is activated, call their api to compress video 
+        and get result(perhaps url and filename); else save video(compressing with ffmpeg seems slow)
+        and get result...
+        - Store filename, mimetype and url in cache and return them.
+    """
 
-#     class Arguments:
-#         file = Upload(required=True)
-#         form_for = PostFormFor(required=True)
+    class Arguments:
+        file = Upload(required=True)
 
-#     filename = graphene.String()
-#     base64_str = graphene.String()
-#     mimetype = graphene.String()
+    filename = graphene.String()
+    url = graphene.String()
+    mimetype = graphene.String()
      
-#     @classmethod
-#     @login_required
-#     def mutate(cls, root, info, file: InMemoryUploadedFile, form_for, **kwargs):
-#         user_cache_keys = get_user_cache_keys(info.context.user.username)
-#         cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
+    @classmethod
+    @login_required
+    def mutate(cls, root, info, file, **kwargs):
+        ## Note that InMemoryUploaded files will be saved during validation,
+        # while TemporaryUploaded files won't be
 
-#         # Validate cache content
-#         validate_cache_media(file, cache_photos_key, cache_video_key)
+        user = info.context.user
+        user_cache_keys = get_user_cache_keys(user.username)
+        cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
 
-#         # Validate video file
-#         try:
-#             validate_post_video_file(file)
-#         except ValidationError as err:
-#             raise GraphQLError(
-#                 err.message % (err.params or {}),
-#                 extensions={'code': err.code}
-#             )
+        # Validate cache content
+        validate_cache_media(cache_photos_key, cache_video_key)
 
-#         # Use None so this value stays in the cache indefinitely, till explicitly deleted
-#         # (or server restarts xD)
-#         cache_key = cache_video_key
-#         cache_video_dict = cache.get_or_set(cache_key, {}, None)
+        # Validate video file.
+        try:
+            validate_post_video_file(file)
+        except ValidationError as err:
+            raise GraphQLError(
+                err.message % (err.params or {}),
+                extensions={'code': err.code}
+            )
 
-#         ## Save file to cache
-#         # Get name without extension
-#         # valid_filename = STORAGE.get_valid_name(file.name).split('.')[0]
+        # Use None so this value stays in the cache indefinitely, till explicitly deleted
+        # (or server restarts xD)
+        cache_key = cache_video_key
+        # cache_video_dict = cache.get_or_set(cache_key, {}, None)
 
-#         # Get file extension and type to use with PIL
-#         file_extension, ftype = get_image_file_thumbnail_extension_and_type(file)
 
-#         # Save thumbnail to in-memory file as StringIO
-#         image = Image.open(file)
-#         # image = image.convert('RGB')
-#         image.thumbnail(THUMBNAIL_ALIASES['']['sm_thumb']['size'], Image.ANTIALIAS)
-#         thumb_file = BytesIO()
-#         image.save(thumb_file, format=ftype)
+        # TODO Call external api (aws elastic video encoder) to compress video
 
-#         # Use random uuid as filename so as to protect user privacy; and besides we don't
-#         # really need the file name.
-#         use_filename = str(uuid.uuid4()) + file_extension
-#         # thumb_file.seek(0)
 
-#         # Will be used with ContentFile to regenerate the file so as to save to
-#         # model object when posting a post
-#             # from django.core.files.base import ContentFile
-#             # img_file = ContentFile(img_io.getvalue())
-#             # saved_file_name = STORAGE.save(save_dir + valid_name, img_file)
+        use_filename = str(uuid.uuid4()) + '.' + get_file_extension(file)
+        mimetype = file.content_type
+        save_path = os.path.join(MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, file.name)
 
-#         file_bytes = thumb_file.getvalue()
-#         base64_bytes = base64.b64encode(file_bytes)
-#         base64_str = base64_bytes.decode('utf-8')
-#         mimetype = file.content_type
-#         # save_dir = FORM_AND_UPLOAD_DIR[form_for]
-#         # saved_filename = STORAGE.save(save_dir + use_filename, file)
+        # If file is not in disk, save it. This is the case for TemporaryUploadedFiles.
+        if not STORAGE.exists(save_path):
+            print('not in storage')
+            saved_filename = STORAGE.save(TEMP_FILES_UPLOAD_DIR + use_filename, file)
+            url = STORAGE.url(saved_filename)
 
-#         print(file.size, thumb_file.tell())
-#         user_photos_list.append({
-#             'file_bytes': file_bytes,
-#             'filename': use_filename,
-#             'mimetype': mimetype
-#         })
-#         cache.set(cache_key, user_photos_list)
-#         thumb_file.close()
+        # Else if file is already in disk, rename it with custom name. 
+        # This is the case for InMemoryUploadedFiles coz during validation, they need to be
+        # saved to get duration, resolution, etc...
+        else:
+            print('in storage')
+            new_save_path = os.path.join(MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, use_filename)
+            os.rename(save_path, new_save_path)
+            url = STORAGE.url(TEMP_FILES_UPLOAD_DIR + use_filename)
 
-#         return SingleImageUploadMutation(
-#             base64_str=base64_str,
-#             filename=use_filename,
-#             mimetype=mimetype
-#         )
+        file_dict = {'filename': use_filename, 'mimetype': mimetype, 'url': url}
+        cache.set(cache_key, file_dict, None)
+
+        return VideoUploadMutation(**file_dict)
        
+
+class AudioUploadMutation(Output, graphene.Mutation):
+    """
+    Upload an audio.
+    Flow:
+        - Audio is uploaded to backend. 
+        - Compress audio(perhaps use bitrate 96k) then convert to video using custom image/images
+        - If AWS Elastic video transcoder is activated, call their api to compress video 
+        and get result(perhaps url and filename); else save video(compressing with ffmpeg seems slow)
+        and get result...
+        - Store filename, mimetype and url in cache and return them.
+    """
+
+    class Arguments:
+        file = Upload(required=True)
+
+    filename = graphene.String()
+    url = graphene.String()
+    mimetype = graphene.String()
+     
+    @classmethod
+    @login_required
+    def mutate(cls, root, info, file, **kwargs):
+        user = info.context.user
+        user_cache_keys = get_user_cache_keys(user.username)
+        cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
+
+        # Validate cache content
+        validate_cache_media(cache_photos_key, cache_video_key)
+
+        # Validate audio file
+        try:
+            validate_post_audio_file(file)
+        except ValidationError as err:
+            raise GraphQLError(
+                err.message % (err.params or {}),
+                extensions={'code': err.code}
+            )
+
+        # Use None so this value stays in the cache indefinitely, till explicitly deleted
+        # (or server restarts xD)
+        cache_key = cache_video_key
+    
+        # TODO Compress audio 
+        compressed_audio_path = os.path.join(settings.MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, file.name)
+        audio = AudioSegment.from_mp3(get_file_path(file))
+        output = audio.export(compressed_audio_path, bitrate='92k')
+        print(type(output))
+
+        # TODO Convert to video
+        audio_path = ''
+        cover_image_path = ''
+        output_video_path = ''  # /.../.../foo.mp4
+        process = subprocess.run(
+            'ffmpeg', '-loop', 1, '-i', 
+            cover_image_path, '-i', audio_path, 
+            '-c:a', 'copy', '-c:v', 'libx264', 
+            '-shortest', output_video_path, shell=True
+        )
+
+        print(type(process.stdout))
+
+        # TODO Call external api (aws elastic video encoder) to compress video
         
+
+        use_filename = str(uuid.uuid4()) + '.' + get_file_extension(file)
+        mimetype = file.content_type
+        save_path = os.path.join(MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, file.name)
+
+        # If file is not in disk, save it. This is the case for TemporaryUploadedFiles.
+        if not STORAGE.exists(save_path):
+            print('not in storage')
+            saved_filename = STORAGE.save(TEMP_FILES_UPLOAD_DIR + use_filename, file)
+            url = STORAGE.url(saved_filename)
+
+        # Else if file is already in disk, rename it with custom name. 
+        # This is the case for InMemoryUploadedFiles coz during validation, they need to be
+        # saved to get duration, resolution, etc...
+        else:
+            print('in storage')
+            new_save_path = os.path.join(MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, use_filename)
+            os.rename(save_path, new_save_path)
+            url = STORAGE.url(TEMP_FILES_UPLOAD_DIR + use_filename)
+
+        file_dict = {'filename': use_filename, 'mimetype': mimetype, 'url': url}
+        cache.set(cache_key, file_dict, None)
+
+        return AudioUploadMutation(**file_dict)
+       
+
+class DeleteUploadedVideoMutation(Output, graphene.Mutation):
+    """Delete uploaded video(remove it from cache)"""
+
+    @classmethod
+    @login_required
+    def mutate(cls, root, info, **kwargs):
+        user_cache_keys = get_user_cache_keys(info.context.user.username)
+        cache.delete(user_cache_keys['video'])
+
+        return DeleteUploadedVideoMutation(success=True)

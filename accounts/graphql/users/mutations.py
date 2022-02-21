@@ -27,7 +27,6 @@ User = get_user_model()
 class PatchUser(Output, DjangoPatchMutation):
     class Meta:
         model = User
-        login_required = True
         only_fields = [
             'display_name', 'country', 'birth_date', 'bio',
             'profile_picture', 'cover_photo', 'gender', 'is_mod', 
@@ -55,6 +54,13 @@ class PatchUser(Output, DjangoPatchMutation):
                 _("You can not modify another user's account"),
                 extensions={'code': 'not_owner'}
             )
+
+    @classmethod
+    @login_required
+    def mutate(cls, root, info, input, id):
+        # This method was overriden just to use the login_required decorator so as to have a 
+        # consistent authentication api.
+        return super().mutate(cls, root, info, input, id)
 
 
 class UserLogout(Output, graphene.ClientIDMutation):

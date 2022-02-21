@@ -24,3 +24,5 @@ django-graphql-auth==0.3.16
 graphene-file-upload==1.16.0
 graphene-django-optimizer==0.8.0
 ffmpeg-python==0.2.0
+moviepy==1.0.3
+pydub==0.25.1

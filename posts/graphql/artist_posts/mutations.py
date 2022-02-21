@@ -10,6 +10,7 @@ from graphql_auth.bases import Output
 from graphql_auth.decorators import login_required
 
 from core.constants import FILE_STORAGE_CLASS
+from core.utils import get_user_cache_keys
 from flagging.graphql.types import FlagNode, FlagInstanceNode, FlagReason
 from notifications.models.models import Notification
 from notifications.signals import notify
@@ -34,9 +35,6 @@ STORAGE = FILE_STORAGE_CLASS()
 class CreateArtistPost(Output, DjangoCreateMutation):
     class Meta:
         model = ArtistPost
-        # If user can login(is_active), then his account status is verified;
-        # thus no need to check whether user.status.verified is True
-        login_required = True
         # If this attribute is edited, then also modify the mutate method.
         only_fields = ('body', 'is_private', 'artist', )
         custom_fields = {
@@ -51,16 +49,16 @@ class CreateArtistPost(Output, DjangoCreateMutation):
         to model fields
         """
         comment_body = input.get('pinned_comment_body', '')
-        validate_comment(comment_body)
+
+        if comment_body:
+            validate_comment(comment_body)
             
         return super().validate(root, info, input)
 
     @classmethod
+    @login_required
     def mutate(cls, root, info, input):
         poster = info.context.user
-        if cls._meta.login_required and not poster.is_authenticated:
-            raise GraphQLError(_("Must be logged in to access this mutation."))
-
         cls.check_permissions(root, info, input)
         cls.validate(root, info, input)
 
@@ -75,17 +73,27 @@ class CreateArtistPost(Output, DjangoCreateMutation):
         
         post.save()
 
+        # Get user cache keys
+        user_cache_keys = get_user_cache_keys(info.context.user.username)
+        cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
+
         # Save photos in cache(if any) to post
         save_dir = FORM_AND_UPLOAD_DIR['artist_post_photo']
-        cache_key = f'{poster.username}-unposted-photos'
-        user_photos_list = cache.get(cache_key, [])
+        user_photos_list = cache.get(cache_photos_key, [])
 
+        # Bulk create photos. Note that one of its caveats is that custom save method 
+        # is not called; but since we have no custom save method, no worries then.
+        post_photos = []
         for photo_dict in user_photos_list:
             img_file = ContentFile(photo_dict['file_bytes'])
             saved_filename = STORAGE.save(save_dir + photo_dict['filename'], img_file)
-            ArtistPostPhoto.objects.create(post=post, photo=saved_filename)
+            post_photos.append(ArtistPostPhoto(post=post, photo=saved_filename))
 
-        # Save vidoes in cache if any
+        ArtistPostPhoto.objects.bulk_create(post_photos)
+
+        print(dir(post.photos.first().photo))
+
+        # Save video in cache if any
         # TODO
         # cache_key = f'{...}-unposted-video'
         # ...
@@ -112,6 +120,10 @@ class CreateArtistPost(Output, DjangoCreateMutation):
             target=post,
         )
 
+        # TODO Use google's natural language api to verify the level of "severity" or 
+        # "sensitivity" of the post. Only share posts that have a given score i.e. don't share
+        # posts with low score like "Polo G is trash"
+        # https://cloud.google.com/natural-language/
         action.send(
             post.artist,
             verb=_('has new post'),
@@ -125,7 +137,6 @@ class CreateArtistPost(Output, DjangoCreateMutation):
 class PatchArtistPost(Output, DjangoPatchMutation):
     class Meta:
         model = ArtistPost
-        login_required = True
         only_fields = ('body', )
 
     @classmethod
@@ -147,6 +158,13 @@ class PatchArtistPost(Output, DjangoPatchMutation):
                 % {'can_edit_minutes': POST_CAN_EDIT_TIME_LIMIT.seconds // 60}
 
             raise GraphQLError(err, extensions={'code': 'not_editable'})
+
+    @classmethod
+    @login_required
+    def mutate(cls, root, info, input, id):
+        # This method was overriden just to use the login_required decorator so as to have a 
+        # consistent authentication api.
+        return super().mutate(cls, root, info, input, id)
         
 
 class DeleteArtistPost(Output, graphene.ClientIDMutation):

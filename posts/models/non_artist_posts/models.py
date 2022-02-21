@@ -10,10 +10,11 @@ from taggit.models import TaggedItemBase
 from core.constants import FILE_STORAGE_CLASS
 from core.fields import DynamicStorageFileField
 from core.mixins import UsesCustomSignal
+from posts.mixins import PostMediaMixin
 from flagging.mixins import FlagMixin
 from posts.constants import (
-	ARTIST_POSTS_VIDEOS_UPLOAD_DIR, 
-	NON_ARTIST_POSTS_PHOTOS_UPLOAD_DIR
+	NON_ARTIST_POST_VIDEO_UPLOAD_DIR, 
+	NON_ARTIST_POST_PHOTO_UPLOAD_DIR
 )
 from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import NonArtistPostOperations
@@ -21,6 +22,24 @@ from ..common.models import (
     Post, PostHashtag, PostRating, 
 	Comment, CommentLike
 )
+
+
+def non_artist_post_photo_upload_path(instance, filename):
+    # File will be uploaded to MEDIA_ROOT/users/user_<id>/non_artist_posts_photos/<filename>
+    return 'users/user_{0}/{1}/{2}'.format(
+		instance.post.poster_id, 
+		NON_ARTIST_POST_PHOTO_UPLOAD_DIR,
+		filename
+	)
+
+
+def non_artist_post_video_upload_path(instance, filename):
+    # File will be uploaded to MEDIA_ROOT/user_<id>/non_artist_posts_videos/<filename>
+    return 'users/user_{0}/{1}/{2}'.format(
+		instance.post.poster_id, 
+		NON_ARTIST_POST_VIDEO_UPLOAD_DIR,
+		filename
+	)
 
 
 class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
@@ -100,7 +119,7 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		]
 
 	
-class NonArtistPostPhoto(models.Model):
+class NonArtistPostPhoto(models.Model, PostMediaMixin):
 	post = models.ForeignKey(
 		NonArtistPost,
 		verbose_name=_('Post'),
@@ -111,8 +130,8 @@ class NonArtistPostPhoto(models.Model):
 	)
 	photo = ThumbnailerImageField(
 		thumbnail_storage=FILE_STORAGE_CLASS(), 
-		upload_to=NON_ARTIST_POSTS_PHOTOS_UPLOAD_DIR,
-		resize_source=dict(size=(1000, 1000), sharpen=True),
+		upload_to=non_artist_post_photo_upload_path,
+		resize_source=dict(size=(250, 250), sharpen=True),
 		validators=[
 			FileExtensionValidator(['png, jpg, gif']), 
 			validate_post_photo_file
@@ -130,7 +149,7 @@ class NonArtistPostPhoto(models.Model):
 		db_table = 'posts\".\"non_artist_post_photo'
 
 
-class NonArtistPostVideo(models.Model):
+class NonArtistPostVideo(models.Model, PostMediaMixin):
 	post = models.OneToOneField(
 		NonArtistPost,
 		db_column='non_artist_post_id',
@@ -139,13 +158,13 @@ class NonArtistPostVideo(models.Model):
 		related_query_name='video'
 	)
 	video = DynamicStorageFileField(
-		upload_to=ARTIST_POSTS_VIDEOS_UPLOAD_DIR, 
+		upload_to=non_artist_post_video_upload_path, 
 		validators=[
 			FileExtensionValidator(['mp4', 'mov']), 
 			validate_post_video_file
-		],
-		blank=True
+		]
 	)
+	was_audio = models.BooleanField(editable=False, default=False)
 
 	def __str__(self):
 		return f'Post {str(self.post)} video'

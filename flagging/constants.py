@@ -1,4 +1,4 @@
-from decouple import config
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 
@@ -9,19 +9,16 @@ from django.utils.translation import gettext_lazy as _
 # coz it doesn't yet have the required number of flags.
 # 
 # Currently = 3
-CONTENT_IS_FLAGGED_COUNT = config('CONTENT_IS_FLAGGED_COUNT', cast=int)
+CONTENT_IS_FLAGGED_COUNT = settings.CONTENT_IS_FLAGGED_COUNT
 # Currently = 2 and i think its okay. 2 mods can't lie lol
-USER_IS_FLAGGED_COUNT = config('USER_IS_FLAGGED_COUNT', cast=int)
+USER_IS_FLAGGED_COUNT = settings.USER_IS_FLAGGED_COUNT
 
 
 # If a post has this number of flags, it will automatically be deleted.
 #
 # Currently = 7
-AUTO_DELETE_FLAGS_COUNT = config('AUTO_DELETE_FLAGS_COUNT', cast=int)
+AUTO_DELETE_FLAGS_COUNT = settings.AUTO_DELETE_FLAGS_COUNT
 # Currently = 4
-AUTO_SUSPEND_USER_ACCOUNT_FLAGS_COUNT = config(
-    'AUTO_SUSPEND_USER_ACCOUNT_FLAGS_COUNT', 
-    cast=int
-)
+AUTO_SUSPEND_USER_ACCOUNT_FLAGS_COUNT = settings.AUTO_SUSPEND_USER_ACCOUNT_FLAGS_COUNT
 
 
