@@ -42,7 +42,7 @@ FILE_STORAGE_CLASS = import_string(settings.DEFAULT_FILE_STORAGE)
 # mimetype. This list is a list of photos that have been uploaded but not yet posted under a post. 
 # 
 #
-# `{user.username}-unposted-video` which is a dict with keys filename, url, mimetype.
+# `{user.username}-unposted-video` which is a dict with keys filename, filepath, mimetype, was_audio.
 # This dict contains video that has been uploaded but not yet posted under a post
 #
 #

@@ -1,5 +1,7 @@
 """This file contains all the constants that will be used in this app"""
+import os
 from datetime import timedelta
+from django.conf import settings
 
 
 # class REPOST_TYPE(enum.Enum):
@@ -18,6 +20,17 @@ MAX_COMMENT_LENGTH = 2000
 
 # Maximum number of photos per post
 MAX_NUM_PHOTOS = 4
+
+# Audio cover image directory
+POST_COVER_IMG_NAME = 'POST_COVER_IMG.png'
+if settings.USE_S3:
+    POST_COVER_IMG_DIR = os.path.join(
+        settings.BASE_DIR, settings.STATIC_ROOT, 'posts/', settings.POST_COVER_IMG_NAME
+    )
+else:
+    POST_COVER_IMG_DIR = os.path.join(
+        settings.BASE_DIR, f'posts/{settings.STATIC_URL}/posts/', POST_COVER_IMG_NAME
+    )
 
 
 ## Media upload directories

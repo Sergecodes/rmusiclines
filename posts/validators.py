@@ -216,7 +216,7 @@ def validate_cache_media(cache_photos_key: str, cache_video_key: str):
     photos_list = cache.get(cache_photos_key, [])
 
     # Verify if GIF is present
-    photo_extensions = [get_file_extension(photo_dict['filename']) for photo_dict in photos_list]
+    photo_extensions = [photo_dict['filename'].split('.')[-1].lower() for photo_dict in photos_list]
     if 'gif' in photo_extensions:
         raise GraphQLError(
             _('GIF already uploaded'),

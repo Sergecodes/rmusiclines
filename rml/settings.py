@@ -303,7 +303,9 @@ if USE_S3:
 	STATIC_LOCATION_ = 'static'
 	STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN_}/{STATIC_LOCATION_}/'
 	STATICFILES_STORAGE = 'core.storages.StaticStorage'
-	STATIC_ROOT = 'static/'
+	STATIC_ROOT = 'staticfiles/'
+	# We don't need STATIC_URL here since to upload files, we'll run collectstatic
+	# and all static files will be placed in the STATIC_ROOT folder
 
 	# s3 public media settings
 	PUBLIC_MEDIA_LOCATION_ = 'media'
@@ -317,13 +319,13 @@ if USE_S3:
 else:
 	DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'  
 	STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
-	STATIC_URL = '/static/'
+	STATIC_URL = 'static/'
 	STATIC_ROOT = BASE_DIR / 'staticfiles'
 	# STATICFILES_DIRS = [
 	# 	BASE_DIR / 'static'
 	# ]
 
-	MEDIA_URL = '/media/'
+	MEDIA_URL = 'media/'
 	MEDIA_ROOT = BASE_DIR / 'media'
 
 
@@ -332,6 +334,7 @@ else:
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Use this to configure the test databases and schema during first run.
 # TEST_RUNNER = 'core.tests.runner.PostgresSchemaTestRunner'
 
 

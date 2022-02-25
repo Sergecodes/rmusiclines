@@ -1,19 +1,19 @@
 
 # TODO
-- test audio upload (use small file sizes)
-- post, update post, repost mutations 
+- update models with info/tips in phone
+- update post, repost mutations 
 - db constraint; artist post and repost should have same artist_id
 - enable profile pic and cover photo uploads
 - setup social authentication (django graphql social auth...)
 
 then:
-- test image upload via AWS
+- test media upload via AWS
 - setup memcached for storing sessions and for general caching !! (performance reasons)
 - go through all TODOs and resolve those possible.
 
 
 # 
-# THIS !!
+# THIS !! TODO
 # To improve download_count query, during each new month, reset the download_count of all users
 # to zero, then increment normally when user downloads a post. If we wish, we can create another
 # table(model) to store the user's download count per month in each year so as to keep track of

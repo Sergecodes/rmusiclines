@@ -158,6 +158,13 @@ class Post(models.Model, PostOperations):
 				code='not_ancestor_comment'
 			)
 
+		# Ensure post doesn't have video and photo
+		if self.photos.exists() and hasattr(self, 'video'):
+			raise ValidationError(
+				_("Post can't have photo and video"),
+				code='invalid'
+			)
+
 	def save(self, *args, **kwargs):
 		self.clean()
 		super().save(*args, **kwargs)

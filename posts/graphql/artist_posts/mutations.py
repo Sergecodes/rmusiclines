@@ -19,7 +19,7 @@ from posts.constants import (
     FORM_AND_UPLOAD_DIR
 )
 from posts.models.artist_posts.models import (
-    ArtistPost, ArtistPostComment, ArtistPostPhoto
+    ArtistPost, ArtistPostComment, ArtistPostPhoto, ArtistPostVideo
 )
 from ..common.types import REPOST_TYPE, RATING_STARS
 from ..common.utils import validate_comment
@@ -89,17 +89,23 @@ class CreateArtistPost(Output, DjangoCreateMutation):
             saved_filename = STORAGE.save(save_dir + photo_dict['filename'], img_file)
             post_photos.append(ArtistPostPhoto(post=post, photo=saved_filename))
 
+        # If no photos were uploaded hence 'post_photos' is empty, there will be no prob
         ArtistPostPhoto.objects.bulk_create(post_photos)
 
-        print(dir(post.photos.first().photo))
+        # Save videos that are in cache to post
+		# TODO Call external api (aws elastic video encoder) to compress video
 
-        # Save video in cache if any
-        # TODO
-        # cache_key = f'{...}-unposted-video'
-        # ...
+        video_dict = cache.get(cache_video_key, {})
+        if video_dict:
+            ArtistPostVideo.objects.create(
+                post=post,
+                video=video_dict['filepath'], 
+                was_audio=video_dict['was_audio']
+            )
 
         # Clear cache
-        # TODO
+        cache.delete(cache_photos_key)
+        cache.delete(cache_video_key)
 
         # Save pinned comment in case it was also passed
         comment_body = input.get('pinned_comment_body', '')
