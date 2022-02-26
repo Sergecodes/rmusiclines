@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q
@@ -10,6 +11,7 @@ from taggit.models import TaggedItemBase
 from core.constants import FILE_STORAGE_CLASS
 from core.fields import DynamicStorageFileField
 from core.mixins import UsesCustomSignal
+from posts.managers import NonArtistPostRepostManager, NonArtistParentPostManager
 from posts.mixins import PostMediaMixin
 from flagging.mixins import FlagMixin
 from posts.constants import (
@@ -25,6 +27,7 @@ from ..common.models import (
 
 
 def non_artist_post_photo_upload_path(instance, filename):
+	# instance is NonArtistPostPhoto about to be saved.
     # File will be uploaded to MEDIA_ROOT/users/user_<id>/non_artist_posts_photos/<filename>
     return 'users/user_{0}/{1}/{2}'.format(
 		instance.post.poster_id, 
@@ -104,6 +107,17 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 	def clean(self):
 		super().clean()
 
+		# If post is simple repost, ensure poster has just one simple repost
+		if self.is_simple_repost:
+			if NonArtistPost.objects.filter(
+				parent=self.parent,
+				poster=self.poster
+			).exists():
+				raise ValidationError(
+					_('User already has simple repost on this post'),
+					code='invalid'
+				)
+
 	def save(self, *args, **kwargs):
 		self.clean()
 		super().save(*args, **kwargs)
@@ -115,8 +129,28 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 			models.Index(
 				fields=['-created_on'], 
 				name='non_artist_post_desc_idx'
+			),
+			models.Index(
+				fields=['is_simple_repost'],
+				name='non_artist_post_repost_idx'
 			)
 		]
+
+
+class NonArtistPostRepost(NonArtistPost):
+	"""Proxy model to operate on non artist posts reposts"""
+	objects = NonArtistPostRepostManager()
+
+	class Meta:
+		proxy = True
+
+
+class NonArtistParentPost(NonArtistPost):
+	"""Proxy model to operate on parent non artist posts"""
+	objects = NonArtistParentPostManager()
+
+	class Meta:
+		proxy = True
 
 	
 class NonArtistPostPhoto(models.Model, PostMediaMixin):

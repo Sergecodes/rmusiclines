@@ -1,7 +1,7 @@
 import base64
 import graphene
 import os
-import shortuuid
+import uuid
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -85,7 +85,7 @@ class MultipleImageUploadMutation(Output, graphene.Mutation):
 			thumb_file = BytesIO()
 			image.save(thumb_file, format=ftype)
 			
-			use_filename = shortuuid.uuid() + '.' + file_extension
+			use_filename = str(uuid.uuid4()) + '.' + file_extension
 			mimetype = file.content_type
 			file_bytes = thumb_file.getvalue()
 			base64_bytes = base64.b64encode(file_bytes)
@@ -191,7 +191,7 @@ class VideoUploadMutation(Output, graphene.Mutation):
 		cache_key = cache_video_key
 		# cache_video_dict = cache.get_or_set(cache_key, {}, None)
 
-		use_filename = shortuuid.uuid() + '.' + get_file_extension(file)
+		use_filename = str(uuid.uuid4()) + '.' + get_file_extension(file)
 		mimetype = file.content_type
 		root_save_path = os.path.join(MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, file.name)
 		save_path = TEMP_FILES_UPLOAD_DIR + use_filename
@@ -292,7 +292,7 @@ class AudioUploadMutation(Output, graphene.Mutation):
 		process.communicate()
 
 		# Rename file and store file info in cache
-		use_filename = shortuuid.uuid() + '.mp4'
+		use_filename = str(uuid.uuid4()) + '.mp4'
 		save_path = TEMP_FILES_UPLOAD_DIR + use_filename
 		new_root_save_path = os.path.join(MEDIA_ROOT, TEMP_FILES_UPLOAD_DIR, use_filename)
 		os.rename(root_output_video_path, new_root_save_path)

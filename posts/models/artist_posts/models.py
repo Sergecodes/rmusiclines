@@ -12,9 +12,10 @@ from accounts.models.artists.models import Artist
 from core.constants import FILE_STORAGE_CLASS
 from core.fields import DynamicStorageFileField
 from core.mixins import UsesCustomSignal
-from posts.mixins import PostMediaMixin
 from flagging.mixins import FlagMixin
 from posts.constants import ARTIST_POST_PHOTO_UPLOAD_DIR, ARTIST_POST_VIDEO_UPLOAD_DIR
+from posts.managers import ArtistPostRepostManager, ArtistParentPostManager
+from posts.mixins import PostMediaMixin
 from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import ArtistPostOperations
 from ..common.models import Post, PostHashtag, PostRating, Comment, CommentLike
@@ -119,6 +120,17 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 				_('An artist post repost must be of the same artist as the parent post'),
 				code='invalid'
 			)
+		
+		# If post is simple repost, ensure poster has just one simple repost
+		if self.is_simple_repost:
+			if ArtistPost.objects.filter(
+				parent=self.parent,
+				poster=self.poster
+			).exists():
+				raise ValidationError(
+					_('User already has simple repost on this post'),
+					code='invalid'
+				)
 
 	def save(self, *args, **kwargs):
 		self.clean()
@@ -133,6 +145,10 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 				fields=['-created_on'], 
 				# Index names cannot be longer than 30 characters.
 				name='artist_post_desc_idx'
+			),
+			models.Index(
+				fields=['is_simple_repost'],
+				name='artist_post_repost_idx'
 			)
 		]
 		# constraints = [
@@ -142,6 +158,22 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		# 		name='pinned_artist_post_comment_is_parent'
 		# 	)
 		# ]
+
+
+class ArtistPostRepost(ArtistPost):
+	"""Proxy model to operate on artist posts reposts"""
+	objects = ArtistPostRepostManager()
+
+	class Meta:
+		proxy = True
+
+
+class ArtistParentPost(ArtistPost):
+	"""Proxy model to operate on parent artist posts"""
+	objects = ArtistParentPostManager()
+
+	class Meta:
+		proxy = True
 
 
 class ArtistPostPhoto(models.Model, PostMediaMixin):

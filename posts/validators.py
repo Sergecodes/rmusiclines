@@ -5,7 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from graphql import GraphQLError
 
 from core.utils import get_file_extension
-from posts.constants import MAX_NUM_PHOTOS
+from posts.constants import MAX_NUM_PHOTOS, MAX_COMMENT_LENGTH
 from .utils import get_video_duration, get_audio_duration, get_video_resolution
 
 '''
@@ -19,6 +19,17 @@ File sizes:
     250MB - 262144000
     500MB - 524288000
 '''
+
+
+def validate_comment(comment: str):
+    """Check if comment's length is appropriate"""
+    
+    if len(comment) > MAX_COMMENT_LENGTH:
+        raise ValidationError(
+            _('Comments should be less than %(max_length)s characters'),
+            code='max_length',
+            params={'max_length': MAX_COMMENT_LENGTH}
+        )
 
 
 def validate_post_photo_file(photo_file):

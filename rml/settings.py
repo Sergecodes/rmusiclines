@@ -447,7 +447,6 @@ GRAPHQL_AUTH = {
 	'REGISTER_MUTATION_FIELDS_OPTIONAL': {
 		'bio': 'String',
 		'gender': 'String', 
-		'is_mod': 'Boolean'
 	},
 	'UPDATE_MUTATION_FIELDS': [],
 	# 'UPDATE_MUTATION_FIELDS': {
@@ -456,15 +455,14 @@ GRAPHQL_AUTH = {
 	# 	'birth_date': 'Date',
 	# 	'gender': 'String', 
 	# 	'bio': 'String',
-	# 	'is_mod': 'Boolean'
 	# },
 	'USER_NODE_FILTER_FIELDS': {
 		'email': ['exact', ],
 		'username': ['exact', 'icontains', 'istartswith'],
 		'is_active': ['exact'],
-		'is_verified': ['exact'],
-		'is_premium': ['exact'],
-		'is_mod': ['exact'],
+		'type__is_verified': ['exact'],
+		'type__is_premium': ['exact'],
+		'type__is_mod': ['exact'],
 		# 'status__archived': ['exact'],
 		# 'status__verified': ['exact'],
 		# 'status__secondary_email': ['exact'],

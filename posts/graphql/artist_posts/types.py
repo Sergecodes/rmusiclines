@@ -4,7 +4,8 @@ from graphene_django import DjangoObjectType
 from core.mixins import PKMixin
 from posts.models.artist_posts.models import (
     ArtistPost, ArtistPostBookmark, ArtistPostComment, ArtistPostDownload, 
-    ArtistPostRating, ArtistPostCommentLike, ArtistPostPhoto, ArtistPostVideo
+    ArtistPostRating, ArtistPostCommentLike, ArtistPostPhoto, ArtistPostVideo,
+    ArtistParentPost, ArtistPostRepost
 )
 from ..common.types import CommentFilter, PostFilter
 
@@ -22,6 +23,20 @@ class ArtistPostCommentFilter(CommentFilter):
 class ArtistPostNode(PKMixin, DjangoObjectType):
     class Meta:
         model = ArtistPost
+        filterset_class = ArtistPostFilter
+        interfaces = [graphene.relay.Node, ]
+
+
+class ArtistPostRepostNode(PKMixin, DjangoObjectType):
+    class Meta:
+        model = ArtistPostRepost
+        filterset_class = ArtistPostFilter
+        interfaces = [graphene.relay.Node, ]
+
+
+class ArtistParentPostNode(PKMixin, DjangoObjectType):
+    class Meta:
+        model = ArtistParentPost
         filterset_class = ArtistPostFilter
         interfaces = [graphene.relay.Node, ]
 

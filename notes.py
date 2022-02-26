@@ -1,7 +1,9 @@
 
 # TODO
-- update post, repost, mark_user_verified, toggle_user_premium, toggle user is moderator mutations 
+- create mark_user_verified, toggle_user_premium, toggle user is moderator mutations 
 - db constraint; artist post and repost should have same artist_id
+- db constraint; If new post is simple repost, ensure poster has just one simple repost on given post parent
+- db constraint; if post is parent, it should have content (at least body or photo or video)
 - enable profile pic and cover photo uploads
 - setup social authentication (django graphql social auth...)
 
@@ -20,6 +22,12 @@ then:
 
 
 # add to site specification:
+- users can't edit post. however, b4 their post is published, they should be shown a render of their
+post. If they validate it, then their post is posted.
+The reason they shouldn't be able to edit is because when a user posts, all his followers for instance
+will be updated. If later he edits(even within a brief 3 minutes span), new users will be seeing another
+version of his post; which isn't very good. Same with comments lol; imagine if user is prestigious/important... 
+...
 - remove avatar images 
 - save post content/images in cache if user doesn't post it.
 - posts/comments can be edited if they haven't lasted up to 3 minutes
@@ -34,8 +42,9 @@ then:
 after 15 days before they can change it again. 
 - possibility for poster of post to pin comment(parent) under post.
 - language of post should be auto detected
-- max length of comments should be 2000chars, just so user doesnt abuse the length; and
-for posts should be 350 chars.
+- update max post length to 500chars. imagine that a user wants to post facts about a given artist... ...
+and other stuff... ...
+- max length of comments should be 2000chars, just so user doesnt abuse the length
 - for artist posts, before adding a post to following users' timeline, verify posts level of 
 "politeness" such as using google's natural language api. If post is like "artist sucks" with a low 
 "score", then only poster's followers will see the post.
@@ -83,89 +92,83 @@ view only sponsored ads (ads where companies contacted us...)
 
 ## Not very useful
 
-# class SingleImageUploadMutation(Output, graphene.Mutation):
-#     """Upload an image"""
 
-#     class Arguments:
-#         file = Upload(required=True)
-#         # form_for = PostFormFor(required=True)
+# After this number of minutes, comment/post can't be edited
+# COMMENT_CAN_EDIT_TIME_LIMIT = timedelta(minutes=3)
+# POST_CAN_EDIT_TIME_LIMIT = timedelta(minutes=3)
 
-#     filename = graphene.String()
-#     base64_str = graphene.String()
-#     mimetype = graphene.String()
-     
+
+
+# class PatchArtistPost(Output, DjangoPatchMutation):
+#     class Meta:
+#         model = ArtistPost
+#         only_fields = ('body', )
+
 #     @classmethod
-#     @login_required
-#     def mutate(cls, root, info, file: InMemoryUploadedFile, **kwargs):
-#         # print(info.context.FILES)
-#         # form = ArtistPhotoForm({'photo': file})
-#         # print(form.data)
-#         # print(form.is_valid())
+#     def check_permissions(cls, root, info, input, id, obj: ArtistPost):
+#         """Only poster of post can edit the post and post should be editable"""
 
-#         user_cache_keys = get_user_cache_keys(info.context.user.username)
-#         cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
-
-#         # Validate cache content
-#         validate_cache_media(file, cache_photos_key, cache_video_key)
-
-#         try:
-#             validate_post_photo_file(file)
-#         except ValidationError as err:
+#         # Only poster can edit post
+#         print(info.context.user)
+#         print(obj.poster)
+#         if info.context.user.id != obj.poster_id:
 #             raise GraphQLError(
-#                 err.message % (err.params or {}),
-#                 extensions={'code': err.code}
+#                 _("Only poster can edit post"),
+#                 extensions={'code': 'not_permitted'}
 #             )
 
-#         # Use None so this value stays in the cache indefinitely, till explicitly deleted
-#         # (or server restarts xD)
-#         cache_key = cache_photos_key
-#         user_photos_list = cache.get_or_set(cache_key, [], None)
+#         # Post should be editable
+#         if not obj.can_be_edited:
+#             err = _("You can no longer edit a post after %(can_edit_minutes)d minutes of its creation") \
+#                 % {'can_edit_minutes': POST_CAN_EDIT_TIME_LIMIT.seconds // 60}
 
-#         ## Save file to cache
-#         # Get name without extension
-#         # valid_filename = STORAGE.get_valid_name(file.name).split('.')[0]
+#             raise GraphQLError(err, extensions={'code': 'not_editable'})
 
-#         # Get file extension and type to use with PIL
-#         file_extension, ftype = get_image_file_thumbnail_extension_and_type(file)
+#     @classmethod
+#     @login_required
+#     def mutate(cls, root, info, input, id):
+#         # This method was overriden just to use the login_required decorator so as to have a 
+#         # consistent authentication api.
+#         return super().mutate(cls, root, info, input, id)
 
-#         # Save thumbnail to in-memory file as StringIO
-#         image = Image.open(file)
-#         # image = image.convert('RGB')
-#         image.thumbnail(THUMBNAIL_ALIASES['']['sm_thumb']['size'], Image.ANTIALIAS)
-#         thumb_file = BytesIO()
-#         image.save(thumb_file, format=ftype)
+#     @classmethod
+#     def after_mutate(cls, root, info, id, input, obj: ArtistPost, return_data):
+#         # Save photos or video to updated object
+#         user_cache_keys = get_user_cache_keys(info.context.user.username)
+#         cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
+        
 
-#         # Use random uuid as filename so as to protect user privacy; and besides we don't
-#         # really need the original file name.
-#         use_filename = str(uuid.uuid4()) + '.' + file_extension
-#         # thumb_file.seek(0)
+	# @property
+	# def can_be_edited(self):
+	# 	"""Verify if post is within edit time frame"""
+	# 	if timezone.now() - self.created_on > POST_CAN_EDIT_TIME_LIMIT:
+	# 		return False
+	# 	return True
 
-#         # Will be used with ContentFile to regenerate the file so as to save to
-#         # model object when posting a post
-#             # from django.core.files.base import ContentFile
-#             # img_file = ContentFile(img_io.getvalue())
-#             # saved_file_name = STORAGE.save(save_dir + valid_name, img_file)
 
-#         file_bytes = thumb_file.getvalue()
-#         base64_bytes = base64.b64encode(file_bytes)
-#         base64_str = base64_bytes.decode('utf-8')
-#         mimetype = file.content_type
-#         # save_dir = FORM_AND_UPLOAD_DIR[form_for]
-#         # saved_filename = STORAGE.save(save_dir + use_filename, file)
+# class PatchArtistPostComment(Output, DjangoPatchMutation):
+#     class Meta:
+#         model = ArtistPostComment
+#         login_required = True
+#         only_fields = ('body', )
 
-#         print(file.size, thumb_file.tell())
-#         user_photos_list.append({
-#             'file_bytes': file_bytes,
-#             'filename': use_filename,
-#             'mimetype': mimetype
-#         })
-#         cache.set(cache_key, user_photos_list)
-#         thumb_file.close()
+#     @classmethod
+#     def check_permissions(cls, root, info, input, id, obj: ArtistPostComment):
+#         """Only poster of comment can edit the comment and comment should be editable"""
 
-#         return SingleImageUploadMutation(
-#             base64_str=base64_str,
-#             filename=use_filename,
-#             mimetype=mimetype
-#         )
-       
-    
+#         # Only poster can edit comment
+#         print(info.context.user)
+#         print(obj.poster)
+#         if info.context.user.id != obj.poster_id:
+#             raise GraphQLError(
+#                 _("Only poster can edit comment"),
+#                 extensions={'code': 'not_permitted'}
+#             )
+
+#         # Comment should be editable
+#         if not obj.can_be_edited:
+#             err = _("You can no longer edit a comment after %(can_edit_minutes)d minutes of its creation") \
+#                 % {'can_edit_minutes': COMMENT_CAN_EDIT_TIME_LIMIT.seconds // 60}
+
+#             raise GraphQLError(err, extensions={'code': 'not_editable'})
+

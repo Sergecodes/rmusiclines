@@ -4,15 +4,11 @@ from django.conf.global_settings import LANGUAGES
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _, pgettext_lazy
 from shortuuid.django_fields import ShortUUIDField
 from taggit.models import TagBase
 
-from posts.constants import (
-	COMMENT_CAN_EDIT_TIME_LIMIT, POST_CAN_EDIT_TIME_LIMIT,
-	MAX_COMMENT_LENGTH, MAX_POST_LENGTH
-)
+from posts.constants import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
 from .operations import PostOperations
 
 
@@ -46,7 +42,7 @@ class Post(models.Model, PostOperations):
 	last_updated_on = models.DateTimeField(auto_now=True, editable=False)
 	is_private = models.BooleanField(default=False)
 	# Is post a normal repost(repost without body)? If it is null, then post is a 
-	# parent(post is not a repost)
+	# parent(post is not a repost). There should be an index on this field.
 	is_simple_repost = models.BooleanField(null=True, blank=True)
 	num_ancestor_comments = models.PositiveIntegerField(
 		_('Number of ancestor comments'),
@@ -85,6 +81,8 @@ class Post(models.Model, PostOperations):
 	)
 
 	def __str__(self):
+		if self.is_simple_repost:
+			return f'Repost with id {self.pk} and parent id {self.parent_id}'
 		return self.body
 
 	@property
@@ -94,6 +92,10 @@ class Post(models.Model, PostOperations):
 	@property
 	def is_repost(self):
 		return not self.is_parent
+
+	@property
+	def is_non_simple_repost(self):
+		return self.is_simple_repost is False
 
 	# @property
 	# def ancestor(self):
@@ -123,13 +125,6 @@ class Post(models.Model, PostOperations):
 	@property
 	def num_reposts(self):
 		return self.num_simple_reposts + self.num_non_simple_reposts
-	
-	@property
-	def can_be_edited(self):
-		"""Verify if post is within edit time frame"""
-		if timezone.now() - self.created_on > POST_CAN_EDIT_TIME_LIMIT:
-			return False
-		return True
 
 	@property
 	def has_been_edited(self):
@@ -158,12 +153,24 @@ class Post(models.Model, PostOperations):
 				code='not_ancestor_comment'
 			)
 
+		has_photo, has_video = self.photos.exists(), hasattr(self, 'video')
+
 		# Ensure post doesn't have video and photo
-		if self.photos.exists() and hasattr(self, 'video'):
+		if has_photo and has_video:
 			raise ValidationError(
 				_("Post can't have photo and video"),
 				code='invalid'
 			)
+
+		# Ensure if post is parent or non simple repost then it isn't "empty" 
+		# (it has content; atleast photo, video or body)
+		if self.is_parent or self.is_non_simple_repost:
+			if not self.body and not has_photo and not has_video:
+				raise ValidationError(
+					_("This post has no content"),
+					code='invalid'
+				)
+
 
 	def save(self, *args, **kwargs):
 		self.clean()
@@ -285,13 +292,6 @@ class Comment(models.Model):
 	def is_reply_to_an_ancestor(self):
 		"""Is the comment a reply to an ancestor comment"""
 		return not self.is_ancestor and self.ancestor == self.parent
-
-	@property
-	def can_be_edited(self):
-		"""Verify if comment is within edit time frame"""
-		if timezone.now() - self.created_on > COMMENT_CAN_EDIT_TIME_LIMIT:
-			return False
-		return True
 
 	def clean(self):
 		# Max length of comment body should be 1000 chars; 

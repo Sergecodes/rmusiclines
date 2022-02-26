@@ -1,35 +1,27 @@
 import graphene
 from actstream import action
-from django.core.cache import cache
-from django.core.files.base import ContentFile
 from django.utils.translation import gettext_lazy as _
-from graphene_django_cud.mutations import DjangoCreateMutation, DjangoPatchMutation
+from graphene_django_cud.mutations import DjangoCreateMutation
 from graphene_django_cud.util import disambiguate_id
 from graphql import GraphQLError
 from graphql_auth.bases import Output
 from graphql_auth.decorators import login_required
 
-from core.constants import FILE_STORAGE_CLASS
-from core.utils import get_user_cache_keys
 from flagging.graphql.types import FlagNode, FlagInstanceNode, FlagReason
 from notifications.models.models import Notification
 from notifications.signals import notify
-from posts.constants import (
-    COMMENT_CAN_EDIT_TIME_LIMIT, POST_CAN_EDIT_TIME_LIMIT, 
-    FORM_AND_UPLOAD_DIR
-)
 from posts.models.artist_posts.models import (
-    ArtistPost, ArtistPostComment, ArtistPostPhoto, ArtistPostVideo
+    ArtistPost, ArtistPostComment,
+    ArtistParentPost, ArtistPostRepost
 )
+from posts.validators import validate_comment
 from ..common.types import REPOST_TYPE, RATING_STARS
-from ..common.utils import validate_comment
+from ..common.utils import store_artist_post_cache_media
 from .types import (
-    ArtistPostCommentNode, ArtistPostNode, ArtistPostBookmarkNode,
+    ArtistPostCommentNode, ArtistPostNode,
     ArtistPostCommentLikeNode, ArtistPostDownloadNode,
-    ArtistPostRatingNode
+    ArtistPostRatingNode, ArtistPostBookmarkNode
 )
-
-STORAGE = FILE_STORAGE_CLASS()
 
 
 class CreateArtistPost(Output, DjangoCreateMutation):
@@ -71,41 +63,9 @@ class CreateArtistPost(Output, DjangoCreateMutation):
         if input.get('is_private') is True:
             post.is_private = True
         
+        # Save post then store cache content in post
         post.save()
-
-        # Get user cache keys
-        user_cache_keys = get_user_cache_keys(info.context.user.username)
-        cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
-
-        # Save photos in cache(if any) to post
-        save_dir = FORM_AND_UPLOAD_DIR['artist_post_photo']
-        user_photos_list = cache.get(cache_photos_key, [])
-
-        # Bulk create photos. Note that one of its caveats is that custom save method 
-        # is not called; but since we have no custom save method, no worries then.
-        post_photos = []
-        for photo_dict in user_photos_list:
-            img_file = ContentFile(photo_dict['file_bytes'])
-            saved_filename = STORAGE.save(save_dir + photo_dict['filename'], img_file)
-            post_photos.append(ArtistPostPhoto(post=post, photo=saved_filename))
-
-        # If no photos were uploaded hence 'post_photos' is empty, there will be no prob
-        ArtistPostPhoto.objects.bulk_create(post_photos)
-
-        # Save videos that are in cache to post
-		# TODO Call external api (aws elastic video encoder) to compress video
-
-        video_dict = cache.get(cache_video_key, {})
-        if video_dict:
-            ArtistPostVideo.objects.create(
-                post=post,
-                video=video_dict['filepath'], 
-                was_audio=video_dict['was_audio']
-            )
-
-        # Clear cache
-        cache.delete(cache_photos_key)
-        cache.delete(cache_video_key)
+        store_artist_post_cache_media(info.context.username, post)
 
         # Save pinned comment in case it was also passed
         comment_body = input.get('pinned_comment_body', '')
@@ -139,62 +99,11 @@ class CreateArtistPost(Output, DjangoCreateMutation):
         return_data = {cls._meta.return_field_name: post}
         return cls(**return_data)
 
-
-class PatchArtistPost(Output, DjangoPatchMutation):
-    class Meta:
-        model = ArtistPost
-        only_fields = ('body', )
-
-    @classmethod
-    def check_permissions(cls, root, info, input, id, obj: ArtistPost):
-        """Only poster of post can edit the post and post should be editable"""
-
-        # Only poster can edit post
-        print(info.context.user)
-        print(obj.poster)
-        if info.context.user.id != obj.poster_id:
-            raise GraphQLError(
-                _("Only poster can edit post"),
-                extensions={'code': 'not_permitted'}
-            )
-
-        # Post should be editable
-        if not obj.can_be_edited:
-            err = _("You can no longer edit a post after %(can_edit_minutes)d minutes of its creation") \
-                % {'can_edit_minutes': POST_CAN_EDIT_TIME_LIMIT.seconds // 60}
-
-            raise GraphQLError(err, extensions={'code': 'not_editable'})
-
-    @classmethod
-    @login_required
-    def mutate(cls, root, info, input, id):
-        # This method was overriden just to use the login_required decorator so as to have a 
-        # consistent authentication api.
-        return super().mutate(cls, root, info, input, id)
-        
-
-class DeleteArtistPost(Output, graphene.ClientIDMutation):
-    class Input:
-        post_id = graphene.ID(required=True)
-
-    post_id = graphene.Int()
-
-    @classmethod
-    @login_required
-    def mutate_and_get_payload(cls, root, info, post_id):
-        post_id = int(disambiguate_id(post_id))
-        deleted_obj_id = info.context.user.delete_artist_post(post_id)
-
-        # post_id will(should) always be equal to deleted_obj_id
-
-        return cls(post_id=deleted_obj_id)
-    
-
+  
 class RepostArtistPost(Output, graphene.ClientIDMutation):
-
     class Input:
         parent_post_id = graphene.ID(required=True)
-        repost_type = REPOST_TYPE(required=True, default_value=REPOST_TYPE.SIMPLE_REPOST)
+        repost_type = REPOST_TYPE(default_value=REPOST_TYPE.SIMPLE_REPOST)
         body = graphene.String()
         # If user reposts with a comment, then that comment is pinned by default.
         pinned_comment_body = graphene.String()
@@ -208,15 +117,14 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
         comment_body = input.get('pinned_comment_body', '')
         validate_comment(comment_body)
 
-        body, repost_type = input['body'], input['repost_type']
         poster = info.context.user
-        parent_post = ArtistPost.objects.get(id=int(disambiguate_id(input['parent_post_id'])))
+        body, repost_type = input.get('body', ''), input['repost_type']
+        parent_post = ArtistParentPost.objects.get(id=int(disambiguate_id(input['parent_post_id'])))
 
-        # Create repost
+        # Repost is simple repost
         if repost_type == REPOST_TYPE.SIMPLE_REPOST:
             repost = ArtistPost.objects.create(
                 is_simple_repost=True,
-                body=body,
                 poster=poster,
                 parent=parent_post,
                 artist=parent_post.artist
@@ -229,6 +137,7 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
                 action_object=repost
             )
 
+        # Repost is non simple repost
         elif repost_type == REPOST_TYPE.NON_SIMPLE_REPOST:
             repost = ArtistPost.objects.create(
                 is_simple_repost=False,
@@ -245,7 +154,8 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
                 action_object=repost
             )
 
-            # TODO add media in cache to post
+            # Store content that's in cache to post
+            store_artist_post_cache_media(poster.username, repost)
 
         # Save pinned comment in case it was also passed
         if comment_body:
@@ -270,6 +180,23 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
         return cls(repost=repost)
 
 
+class DeleteArtistPost(Output, graphene.ClientIDMutation):
+    class Input:
+        post_id = graphene.ID(required=True)
+
+    post_id = graphene.Int()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, post_id):
+        post_id = int(disambiguate_id(post_id))
+        deleted_obj_id = info.context.user.delete_artist_post(post_id)
+
+        # post_id should(will) always be equal to deleted_obj_id
+
+        return cls(post_id=deleted_obj_id)
+  
+
 class PinArtistPost(Output, graphene.ClientIDMutation):
     class Input:
         post_id = graphene.ID(required=True)
@@ -280,7 +207,7 @@ class PinArtistPost(Output, graphene.ClientIDMutation):
     @login_required
     def mutate_and_get_payload(cls, root, info, post_id):
         user, post_id = info.context.user, int(disambiguate_id(post_id))
-        post = ArtistPost.objects.get(id=post_id)
+        post = ArtistParentPost.objects.get(id=post_id)
 
         # Post should belong to user
         if post.poster_id != user.id:
@@ -519,33 +446,6 @@ class CreateArtistPostAncestorComment(Output, graphene.ClientIDMutation):
         )
 
         return cls(comment=comment)
-
-
-class PatchArtistPostComment(Output, DjangoPatchMutation):
-    class Meta:
-        model = ArtistPostComment
-        login_required = True
-        only_fields = ('body', )
-
-    @classmethod
-    def check_permissions(cls, root, info, input, id, obj: ArtistPostComment):
-        """Only poster of comment can edit the comment and comment should be editable"""
-
-        # Only poster can edit comment
-        print(info.context.user)
-        print(obj.poster)
-        if info.context.user.id != obj.poster_id:
-            raise GraphQLError(
-                _("Only poster can edit comment"),
-                extensions={'code': 'not_permitted'}
-            )
-
-        # Comment should be editable
-        if not obj.can_be_edited:
-            err = _("You can no longer edit a comment after %(can_edit_minutes)d minutes of its creation") \
-                % {'can_edit_minutes': COMMENT_CAN_EDIT_TIME_LIMIT.seconds // 60}
-
-            raise GraphQLError(err, extensions={'code': 'not_editable'})
 
 
 class DeleteArtistPostComment(Output, graphene.ClientIDMutation):

@@ -21,7 +21,7 @@ def notify_handler(verb, **kwargs):
     ]
     description = kwargs.pop('description', '')
     timestamp = kwargs.pop('timestamp', timezone.now())
-    level = kwargs.pop('level', Notification.LEVEL_CODES.INFO)
+    level = kwargs.pop('level', Notification.INFO)
     ## added fields
     category = kwargs.pop('category')
 

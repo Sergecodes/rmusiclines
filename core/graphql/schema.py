@@ -14,10 +14,10 @@ from accounts.graphql.users.mutations import (
     DeactivateAccount, ReactivateAccount, UserLogout
 )
 from posts.graphql.artist_posts.mutations import (
-    CreateArtistPost, PatchArtistPost, DeleteArtistPost, RepostArtistPost, 
+    CreateArtistPost, DeleteArtistPost, RepostArtistPost, 
     RecordArtistPostDownload, BookmarkArtistPost, RemoveArtistPostBookmark, 
     RateArtistPost, RemoveArtistPostRating, CreateArtistPostAncestorComment,
-    PatchArtistPostComment, DeleteArtistPostComment, ReplyToArtistPostComment,
+    DeleteArtistPostComment, ReplyToArtistPostComment,
     LikeArtistPostComment, RemoveArtistPostCommentLike, FlagArtistPost,
     UnflagArtistPost, FlagArtistPostComment, UnflagArtistPostComment,
     AbsolveArtistPost, AbsolveArtistPostComment, PinArtistPost,
@@ -84,7 +84,6 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
 
     ## Artist Post mutations
     create_artist_post = CreateArtistPost.Field()
-    patch_artist_post = PatchArtistPost.Field()
     delete_artist_post = DeleteArtistPost.Field()
     repost_artist_post = RepostArtistPost.Field()
     record_artist_post_download = RecordArtistPostDownload.Field()
@@ -101,7 +100,6 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     
     ## Artist post comment mutations
     create_artist_post_ancestor_comment = CreateArtistPostAncestorComment.Field()
-    patch_artist_post_comment = PatchArtistPostComment.Field()
     delete_artist_post_comment = DeleteArtistPostComment.Field()
     reply_to_artist_post_comment = ReplyToArtistPostComment.Field()
     like_artist_post_comment = LikeArtistPostComment.Field()
