@@ -4,15 +4,10 @@ from graphene_django import DjangoObjectType
 from graphql_auth.schema import UserNode as BaseUserNode
 from graphql_auth.settings import graphql_auth_settings
 
-from accounts.models.users.models import UserBlocking, UserFollow, Suspension
+from accounts.models.users.models import UserType, UserBlocking, UserFollow, Suspension
 from core.mixins import PKMixin
 
 User = get_user_model()
-
-
-# class UserType(PKMixin, DjangoObjectType):
-#     class Meta:
-#         model = User
 
 
 class UserAccountNode(BaseUserNode):
@@ -27,6 +22,12 @@ class UserFollowNode(PKMixin, DjangoObjectType):
     class Meta:
         model = UserFollow
         interfaces = [graphene.relay.Node, ]
+
+
+class UserTypeNode(PKMixin, DjangoObjectType):
+    class Meta:
+        model = UserType
+        interfaces = (graphene.relay.Node, )
 
 
 class UserBlockingNode(PKMixin, DjangoObjectType):

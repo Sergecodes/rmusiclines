@@ -2,11 +2,11 @@ from django.contrib.auth.models import (
     Permission, 
     UserManager as BaseUserManager
 )
-from django.contrib.contenttypes.models import ContentType
 from django.db.models.query import QuerySet
 from django.utils import timezone
 
 from accounts.models.artists.models import Artist
+from core.utils import get_content_type
 
 
 class UserQuerySet(QuerySet):
@@ -29,9 +29,8 @@ class UserManager(BaseUserManager):
         display_name, birth_date, country,  
         **extra_fields
     ):  
-        email = self.normalize_email(email)
-        username = self.model.normalize_username(username)
-        
+        from accounts.models.users.models import UserType
+
         user = self.model(
             username=username, 
             email=email, 
@@ -42,6 +41,9 @@ class UserManager(BaseUserManager):
         )
         user.set_password(password)
         user.save(using=self._db)
+
+        # Save corresponding type
+        UserType.objects.create(user=user)
             
         return user
 
@@ -49,11 +51,10 @@ class UserManager(BaseUserManager):
         self, username, email, password, display_name, 
         birth_date, country, **extra_fields
     ):
-        extra_fields.setdefault('is_mod', True)
+        from accounts.models.users.models import UserType
+
         extra_fields.setdefault('is_staff', True)
 
-        if extra_fields.get('is_mod') is not True:
-            raise ValueError('Staff must have is_mod=True.')
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Staff must have is_staff=True.')
 
@@ -62,10 +63,13 @@ class UserManager(BaseUserManager):
             display_name, birth_date, country, 
             **extra_fields
         )
+
+        # Mark staff as moderator
+        UserType.objects.create(user=staff_user, is_mod=True)
         
         # Get and set CUD(Create-Update-Delete) artist operations permissions
         cud_artist_permissions = Permission.objects.filter(
-            content_type=ContentType.objects.get_for_model(Artist)
+            content_type=get_content_type(Artist)
         ).exclude(codename='view_artist')
 
         staff_user.user_permissions.set(cud_artist_permissions)
@@ -75,12 +79,9 @@ class UserManager(BaseUserManager):
         self, username, email, password, display_name, 
         birth_date, country, **extra_fields
     ):
-        extra_fields.setdefault('is_mod', True)
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
 
-        if extra_fields.get('is_mod') is not True:
-            raise ValueError('Superuser must have is_mod=True.')
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
         if extra_fields.get('is_superuser') is not True:

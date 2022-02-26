@@ -300,14 +300,15 @@ if USE_S3:
 		'CacheControl': 'max-age=86400'
 	}
 	# s3 static settings
-	STATIC_LOCATION_ = 'static'
-	STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN_}/{STATIC_LOCATION_}/'
+	# STATIC_LOCATION_ = 'static'
+	STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN_}/static/'
 	STATICFILES_STORAGE = 'core.storages.StaticStorage'
 	STATIC_ROOT = 'staticfiles/'
 	# We don't need STATIC_URL here since to upload files, we'll run collectstatic
 	# and all static files will be placed in the STATIC_ROOT folder
 
-	# s3 public media settings
+	# s3 public media settings. 
+	# This var is also used in core.storages to set the location of media files
 	PUBLIC_MEDIA_LOCATION_ = 'media'
 	MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN_}/{PUBLIC_MEDIA_LOCATION_}/'
 	MEDIA_ROOT = MEDIA_URL

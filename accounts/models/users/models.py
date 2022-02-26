@@ -1,11 +1,12 @@
 import datetime
 from django_countries.fields import CountryField
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, Group, Permission
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
+from django.utils.functional import cached_property, classproperty
 from django.utils.translation import gettext_lazy as _
 from easy_thumbnails.fields import ThumbnailerImageField
 
@@ -24,12 +25,54 @@ from posts.models.non_artist_posts.models import NonArtistPost
 from .operations import UserOperations, SuspensionOperations
 
 
+class UserType(models.Model):
+    """
+    Model used to store different user types(premium, verified, moderator, site_agent).
+    """
+
+    user = models.OneToOneField(
+        'User', 
+        on_delete=models.CASCADE, 
+        related_name='type',
+        db_column='user_id',
+		primary_key=True
+    )
+    is_mod = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
+    is_premium = models.BooleanField(default=False)
+    # Site agents will be like dummy users that will post content on the site, 
+    # basically to give the impression that many people are using the site.
+    # Some of these accounts can even be verified :)
+    is_site_agent = models.BooleanField(default=False)
+
+    def __str__(self):
+        return "%s - type" % (self.user)
+
+    class Meta:
+        db_table = 'accounts\".\"user_type'
+        indexes = [
+            models.Index(
+				fields=['is_mod'], 
+				name='user_type_is_mod_idx'
+			),
+            models.Index(
+				fields=['is_verified'], 
+				name='user_type_is_verified_idx'
+			),
+            models.Index(
+				fields=['is_premium'], 
+				name='user_type_is_premium_idx'
+			),
+		]
+
 class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal):
+    username_validator = UserUsernameValidator()
+
     username = models.CharField(
         _('Username'),
         max_length=15,
         # Enforce uniqueness via UniqueConstraint on Meta class
-        validators=[UserUsernameValidator()],
+        validators=[username_validator],
         help_text=_(
             'Your username should be less than 15 characters '
             'and may contain only letters, numbers and underscores; '
@@ -63,10 +106,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         }
     )
     display_name = models.CharField(_('Full name'), max_length=50)
-    country = CountryField(
-        verbose_name=_('Location'),
-        blank_label=_('(select country)'),
-    )
+    country = CountryField(verbose_name=_('Location'), blank_label=_('(select country)'))
     birth_date = models.DateField(_('Date of birth'))
     bio = models.CharField(
         _('Bio'), 
@@ -100,26 +140,41 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     cover_photo_width = models.PositiveIntegerField(default=0)
     cover_photo_height = models.PositiveIntegerField(default=0)
 
-    gender = models.CharField(
-        _('Gender'),
-        choices=GENDERS,
-        default='M',
-        max_length=3
-    )
-    joined_on = models.DateTimeField(_('Date joined'), auto_now_add=True, editable=False)
-    is_superuser = models.BooleanField(default=False)
+    gender = models.CharField(choices=GENDERS, default='M', max_length=3)
+
+    # From django's AbstractUser model and used joined_on and not date_joined
     # Staff or admin (can login to admin panel)
     is_staff = models.BooleanField(default=False)   
-    # Site moderator
-    is_mod = models.BooleanField(default=False)  
+    
     # Can user login ? set to False by default since user has to confirm email address...
     is_active = models.BooleanField(default=False)  
-    # Is the user a Verified user?
-    is_verified = models.BooleanField(default=False)
-    is_premium = models.BooleanField(default=False)
+    joined_on = models.DateTimeField(_('Date joined'), auto_now_add=True, editable=False)
+
     verified_on = models.DateTimeField(null=True, blank=True, editable=False)
     deactivated_on = models.DateTimeField(null=True, blank=True, editable=False)
     last_changed_username_on = models.DateTimeField(null=True, blank=True, editable=False)
+
+    # From the PermissionsMixin class, just to update related_name attribute of m2m fields
+    is_superuser = models.BooleanField(default=False)
+    groups = models.ManyToManyField(
+        Group,
+        verbose_name=_('groups'),
+        blank=True,
+        help_text=_(
+            'The groups this user belongs to. A user will get all permissions '
+            'granted to each of their groups.'
+        ),
+        related_name='users',
+        related_query_name='user',
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        verbose_name=_('user permissions'),
+        blank=True,
+        help_text=_('Specific permissions for this user.'),
+        related_name='users',
+        related_query_name='user',
+    )
 
     # Other users related info
     blocked_users = models.ManyToManyField(
@@ -163,7 +218,8 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     num_ancestor_artist_post_comments = models.PositiveIntegerField(default=0, editable=False)
     num_ancestor_non_artist_post_comments = models.PositiveIntegerField(default=0, editable=False)
 
-    # EMAIL_FIELD needs to be set for graphql-auth
+
+    # EMAIL_FIELD isn't normally compulsory but in our case it needs to be set for graphql-auth
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'username'
     # USERNAME_FIELD and password are required by default
@@ -179,48 +235,52 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     def __str__(self):
         return f'{self.display_name}, @{self.username}'
 
-    @classmethod
-    @property
+    @classproperty
     def superuser(cls):
         return cls.objects.get(superuser=True)
 
-    @classmethod
-    @property
+    @classproperty
     def main_site_account(cls):
         # TODO Create a principal site account and update this
         return cls.superuser
 
-    @classmethod
-    @property
+    @classproperty
     def site_services_account(cls):
         # TODO Create this account. It will be responsible for instance for 
         # notifying users if needed; such as when their account if flagged...
         return cls.superuser
 
-    @classmethod
-    @property
+    @classproperty
     def moderators(cls):
-        return cls.objects.filter(is_mod=True)
+        return cls.objects.filter(type__is_mod=True)
 
-    @classmethod
-    @property
+    @classproperty
     def staff(cls):
         return cls.objects.filter(is_staff=True)
 
-    @classmethod
-    @property
+    @classproperty
     def active_users(cls):
         return cls.objects.filter(is_active=True)
 
-    @classmethod
-    @property
+    @classproperty
     def premium_users(cls):
-        return cls.objects.filter(is_premium=True)
+        return cls.objects.filter(type__is_premium=True)
 
-    @classmethod
-    @property
+    @classproperty
     def verified_users(cls):
-        return cls.objects.filter(is_verified=True)
+        return cls.objects.filter(type__is_verified=True)
+
+    @cached_property
+    def is_mod(self):
+        return self.type.is_mod
+
+    @cached_property
+    def is_verified(self):
+        return self.type.is_verified
+
+    @property
+    def is_premium(self):
+        return self.type.is_premium
 
     @property
     def status_verified(self):
@@ -309,6 +369,14 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         return self.overall_non_artist_post_comments.filter(is_parent=True)
        
     def clean(self):
+        # This is the default construct of the AbstractUser class; calling the super() method
+        # and setting the email to a nomalized one.
+        # The super method basically calls the AbstractBaseUser class' clean() method
+        # which normalizes the username; despite the fact that hovering over this method
+        # doesn't lead to the AbstractBaseUser class' implementation 
+        super().clean()
+        self.email = self.__class__.objects.normalize_email(self.email)
+
         # Don't allow both pinned artist post and pinned non artist post
         if self.pinned_artist_post and self.pinned_non_artist_post:
             raise ValidationError(
@@ -355,20 +423,8 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
 				name='user_is_staff_idx'
 			),
             models.Index(
-				fields=['is_mod'], 
-				name='user_is_mod_idx'
-			),
-            models.Index(
 				fields=['is_active'], 
 				name='user_is_active_idx'
-			),
-            models.Index(
-				fields=['is_verified'], 
-				name='user_is_verified_idx'
-			),
-            models.Index(
-				fields=['is_premium'], 
-				name='user_is_premium_idx'
 			),
 		]
         constraints = [

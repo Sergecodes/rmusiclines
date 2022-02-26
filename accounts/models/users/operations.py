@@ -1,6 +1,7 @@
 """Contains operations for the various models as mixins"""
 
 from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
 from django.db.models import F
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -13,11 +14,11 @@ from notifications.models.models import Notification
 from notifications.signals import notify
 from posts.models.artist_posts.models import (
     ArtistPostBookmark, ArtistPostCommentLike, 
-    ArtistPostDownload, ArtistPostRating, 
+    ArtistPostDownload, ArtistPostRating, ArtistPost
 )
 from posts.models.non_artist_posts.models import (
     NonArtistPostBookmark, NonArtistPostCommentLike, 
-    NonArtistPostDownload, NonArtistPostRating, 
+    NonArtistPostDownload, NonArtistPostRating, NonArtistPost
 )
 from posts.utils import (
     get_artist_post, get_artist_post_comment,
@@ -27,6 +28,14 @@ from posts.utils import (
 
 class UserOperations:
     """Mixin containing operations to be used on the User model"""
+
+    # Copied from django's AbstractUser model
+    def email_user(self, subject, message, from_email=None, **kwargs):
+        """
+        Send an email to this user. If `from_email` is None, DEFAULT_FROM_EMAIL
+        defined in the settings file will be used.
+        """
+        send_mail(subject, message, from_email, [self.email], **kwargs)
 
     def deactivate(self):
         """Mark user as inactive but allow his record in database."""
@@ -76,6 +85,33 @@ class UserOperations:
         self.username = new_username
         self.last_changed_username_on = timezone.now()
         self.save(update_fields=['username', 'last_changed_username_on'])
+
+    def has_downloaded_post(self, post):
+        """Return whether user has downloaded `post` or not"""
+
+        if isinstance(post, ArtistPost):
+            return ArtistPostDownload.objects.filter(
+                downloader=self,
+                post=post
+            ).exists()
+        elif isinstance(post, NonArtistPost):
+            return NonArtistPostDownload.objects.filter(
+                downloader=self,
+                post=post
+            ).exists()
+        else:
+            raise TypeError(_('Object should be instance of ArtstPost or NonArtistPost'))
+
+    def can_download_post(self, post):
+        """
+        Returns whether user can download `post`. 
+        Note that if a user is permitted to download an already downloaded post 
+        unlimited times.
+        """
+        if self.has_downloaded_post(post):
+            return True
+
+        return self.can_download
 
     def num_downloads(self, month: int, year: int):
         """

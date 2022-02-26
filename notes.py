@@ -1,7 +1,6 @@
 
 # TODO
-- update models with info/tips in phone
-- update post, repost mutations 
+- update post, repost, mark_user_verified, toggle_user_premium, toggle user is moderator mutations 
 - db constraint; artist post and repost should have same artist_id
 - enable profile pic and cover photo uploads
 - setup social authentication (django graphql social auth...)

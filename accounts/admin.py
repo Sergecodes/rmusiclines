@@ -8,7 +8,7 @@ from .models.artists.models import (
 )
 from .models.users.models import (
     UserBlocking, UserFollow,
-    Suspension, Settings, 
+    Suspension, Settings, UserType
 )
 
 User = get_user_model()
@@ -22,12 +22,11 @@ class UserAdmin(BaseUserAdmin):
     list_display = (
         'id', 'username', 'display_name', 'email', 'num_followers', 'num_following', 
         'country', 'bio', 'birth_date', 'profile_picture', 'cover_photo', 'gender', 
-        'joined_on', 'last_login', 'is_active', 'is_mod', 'is_staff', 'is_superuser',
-        'is_verified', 'verified_on', 'is_premium', 'deactivated_on'
+        'joined_on', 'last_login', 'is_active', 'is_staff', 'is_superuser',
+        'verified_on', 'deactivated_on', 
     )
     list_filter = (
         'username', 'country', 'gender', 
-        'is_mod', 'is_verified', 'is_premium',
     )
     fieldsets = (
         (None, {'fields': (
@@ -35,7 +34,7 @@ class UserAdmin(BaseUserAdmin):
             )
         }),
         ('Permissions', {'fields': (
-                'is_active', 'is_mod', 'is_staff', 
+                'is_active', 'type__is_mod', 'is_staff', 
             )
         }),
     )
@@ -57,10 +56,14 @@ class UserAdmin(BaseUserAdmin):
     # )
     search_fields = (
         'email', 'display_name', 'first_language', 
-        'gender', 'is_premium', 
+        'gender', 
     )
     ordering = ('username', 'country', 'joined_on', )
     date_hierarchy = 'joined_on'
+
+
+class UserTypeAdmin(admin.ModelAdmin):
+    pass
 
 
 class UserBlockingAdmin(admin.ModelAdmin):
@@ -80,6 +83,7 @@ class SettingsAdmin(admin.ModelAdmin):
 
 
 admin.site.register(User, UserAdmin)
+admin.site.register(UserType, UserTypeAdmin)
 admin.site.register(UserBlocking, UserBlockingAdmin)
 admin.site.register(UserFollow, UserFollowAdmin)
 admin.site.register(Suspension, SuspensionAdmin)

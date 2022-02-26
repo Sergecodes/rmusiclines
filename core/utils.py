@@ -14,10 +14,10 @@ from posts.constants import TEMP_FILES_UPLOAD_DIR
 STORAGE = FILE_STORAGE_CLASS()
 
 
-def get_content_type(model_obj):
+def get_content_type(model_or_obj):
     """Return the content type of a given model"""
     
-    return ContentType.objects.get_for_model(model_obj)
+    return ContentType.objects.get_for_model(model_or_obj)
 
 
 def get_file_path(file):

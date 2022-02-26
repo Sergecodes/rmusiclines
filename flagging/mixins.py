@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 from django.contrib.contenttypes.models import ContentType
 from django.http import QueryDict
 from django.http.response import JsonResponse
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 from flagging.models.models import Flag
@@ -14,7 +15,7 @@ class FlagMixin:
 	the model(model that can be flagged).
 	"""
 
-	@property
+	@cached_property
 	def flag(self):
 		"""
 		To get the related Flag object for the corresponding model object .
