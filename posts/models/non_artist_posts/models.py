@@ -199,6 +199,7 @@ class NonArtistPostVideo(models.Model, PostMediaMixin):
 		]
 	)
 	was_audio = models.BooleanField(editable=False, default=False)
+	num_views = models.PositiveIntegerField(default=0, editable=False)
 
 	def __str__(self):
 		return f'Post {str(self.post)} video'

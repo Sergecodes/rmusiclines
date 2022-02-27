@@ -1,9 +1,10 @@
 
 # TODO
+- update non artist post graphql stuffs
 - setup social authentication (django graphql social auth...)
+- test media upload via AWS
 
 then:
-- test media upload via AWS
 - setup memcached for storing sessions and for general caching !! (performance reasons)
 - go through all TODOs and resolve those possible.
 - payment mutations

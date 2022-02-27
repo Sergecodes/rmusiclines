@@ -1,7 +1,7 @@
 import graphene
 from graphene_django import DjangoObjectType
 
-from core.mixins import GraphenePKMixin, GraphenePhotoMixin
+from core.mixins import GraphenePKMixin, GraphenePhotoMixin, GrapheneVideoMixin
 from posts.models.artist_posts.models import (
     ArtistPost, ArtistPostBookmark, ArtistPostComment, ArtistPostDownload, 
     ArtistPostRating, ArtistPostCommentLike, ArtistPostPhoto, ArtistPostVideo,
@@ -54,7 +54,7 @@ class ArtistPostPhotoNode(GraphenePKMixin, GraphenePhotoMixin, DjangoObjectType)
         interfaces = [graphene.relay.Node, ]
 
 
-class ArtistPostVideoNode(GraphenePKMixin, DjangoObjectType):
+class ArtistPostVideoNode(GraphenePKMixin, GrapheneVideoMixin, DjangoObjectType):
     class Meta:
         model = ArtistPostVideo
         interfaces = [graphene.relay.Node, ]

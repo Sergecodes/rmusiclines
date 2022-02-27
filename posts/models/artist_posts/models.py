@@ -231,6 +231,9 @@ class ArtistPostVideo(models.Model, PostMediaMixin):
 	# Since users can post audio that will ultimately be converted to video,
 	# this attribute is to determine whether or not the uploaded file was an audio.
 	was_audio = models.BooleanField(editable=False, default=False)
+	# Number of views that this video has(not the number of people that have view it).
+	# This can be dependent on the duration of the video
+	num_views = models.PositiveIntegerField(default=0, editable=False)
 
 	def __str__(self):
 		return f'Post {str(self.post)} video'

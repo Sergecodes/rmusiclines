@@ -38,6 +38,14 @@ class GraphenePhotoMixin:
         return root.photo.url
 
 
+class GrapheneVideoMixin:
+    """Used with DjangoObjectTypes that represent a video model"""
+    url = graphene.String()
+
+    def resolve_url(root, info):
+        return root.video.url
+
+
 class GrapheneRenderTaggitTags:
     """
     Use this mixin to enable graphene-django correctly render django-taggit 
