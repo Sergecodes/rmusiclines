@@ -1,16 +1,17 @@
 
 # TODO
-- create mark_user_verified, toggle_user_premium, toggle user is moderator mutations 
-- db constraint; artist post and repost should have same artist_id
-- db constraint; If new post is simple repost, ensure poster has just one simple repost on given post parent
-- db constraint; if post is parent, it should have content (at least body or photo or video)
-- enable profile pic and cover photo uploads
+- upload artist photos and delete artist photos
 - setup social authentication (django graphql social auth...)
 
 then:
 - test media upload via AWS
 - setup memcached for storing sessions and for general caching !! (performance reasons)
 - go through all TODOs and resolve those possible.
+- payment mutations
+
+- db constraint; artist post and repost should have same artist_id
+- db constraint; If new post is simple repost, ensure poster has just one simple repost on given post parent
+- db constraint; if post is parent, it should have content (at least body or photo or video)
 
 
 # 

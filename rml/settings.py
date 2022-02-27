@@ -408,7 +408,8 @@ THUMBNAIL_ALIASES = {
 	'': {
 		'thumb': {'size': (2000, 500), 'sharpen': True, },
 		'sm_thumb': {'size': (1000, 350), 'sharpen': True, },
-
+		'profile_pic': {'size': (400, 400)},
+		'cover_photo': {'size': (600, 250)}
 	}
 }
 THUMBNAIL_CACHE_DIMENSIONS = True

@@ -55,7 +55,7 @@ def validate_post_photo_file(photo_file):
             if content_type in ['image/jpg', 'image/jpeg']:
                 ctype_ext = 'jpg'
             else:
-                ctype_ext = content_type.split('/')[-1]
+                ctype_ext = content_type.split('/')[-1].lower()
 
             if ctype_ext != get_file_extension(file):
                 raise ValidationError(
@@ -158,7 +158,7 @@ def validate_post_video_file(video_file):
     content_type = video.content_type
     if content_type in VALID_CONTENT_TYPES:
         # Ensure content type matches extension
-        ctype_ext = content_type.split('/')[-1]
+        ctype_ext = content_type.split('/')[-1].lower()
         if ctype_ext != get_file_extension(video):
             raise ValidationError(
                 _("Corrupt file, content type doesn't match with extension"),

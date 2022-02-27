@@ -65,7 +65,7 @@ class CreateArtistPost(Output, DjangoCreateMutation):
         
         # Save post then store cache content in post
         post.save()
-        store_artist_post_cache_media(info.context.username, post)
+        store_artist_post_cache_media(poster, post)
 
         # Save pinned comment in case it was also passed
         comment_body = input.get('pinned_comment_body', '')
@@ -155,7 +155,7 @@ class RepostArtistPost(Output, graphene.ClientIDMutation):
             )
 
             # Store content that's in cache to post
-            store_artist_post_cache_media(poster.username, repost)
+            store_artist_post_cache_media(poster, repost)
 
         # Save pinned comment in case it was also passed
         if comment_body:

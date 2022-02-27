@@ -16,15 +16,17 @@ from flagging.mixins import FlagMixin
 from posts.constants import ARTIST_POST_PHOTO_UPLOAD_DIR, ARTIST_POST_VIDEO_UPLOAD_DIR
 from posts.managers import ArtistPostRepostManager, ArtistParentPostManager
 from posts.mixins import PostMediaMixin
+from posts.utils import get_post_media_upload_path
 from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import ArtistPostOperations
 from ..common.models import Post, PostHashtag, PostRating, Comment, CommentLike
 
 
 def artist_post_photo_upload_path(instance, filename):
+	# instance is ArtistPostPhoto about to be saved.
     # File will be uploaded to MEDIA_ROOT/users/user_<id>/artist_posts_photos/<filename>
-    return 'users/user_{0}/{1}/{2}'.format(
-		instance.post.poster_id, 
+	return get_post_media_upload_path(
+		instance.post.porter_id,
 		ARTIST_POST_PHOTO_UPLOAD_DIR,
 		filename
 	)
@@ -32,7 +34,7 @@ def artist_post_photo_upload_path(instance, filename):
 
 def artist_post_video_upload_path(instance, filename):
     # File will be uploaded to MEDIA_ROOT/user_<id>/artist_posts_videos/<filename>
-    return 'users/user_{0}/{1}/{2}'.format(
+    return get_post_media_upload_path(
 		instance.post.poster_id, 
 		ARTIST_POST_VIDEO_UPLOAD_DIR,
 		filename

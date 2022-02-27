@@ -17,12 +17,31 @@ from accounts.constants import (
 )
 from accounts.managers import UserManager
 from accounts.utils import get_age
-from accounts.validators import UserUsernameValidator
+from accounts.validators import UserUsernameValidator, validate_profile_and_cover_photo
 from core.constants import GENDERS, FILE_STORAGE_CLASS
 from core.mixins import UsesCustomSignal
 from posts.models.artist_posts.models import ArtistPost
 from posts.models.non_artist_posts.models import NonArtistPost
 from .operations import UserOperations, SuspensionOperations
+
+
+
+def profile_pic_upload_path(user, filename):
+    # File will be uploaded to MEDIA_ROOT/users/user_<id>/profile_pics/<filename>
+    return 'users/user_{0}/{1}/{2}'.format(
+		user.pk, 
+		USERS_PROFILE_PICTURES_UPLOAD_DIR,
+		filename
+	)
+
+
+def cover_photo_upload_path(user, filename):
+    # File will be uploaded to MEDIA_ROOT/user_<id>/cover_photos/<filename>
+    return 'users/user_{0}/{1}/{2}'.format(
+		user.pk, 
+		USERS_COVER_PHOTOS_UPLOAD_DIR,
+		filename
+	)
 
 
 class UserType(models.Model):
@@ -64,6 +83,7 @@ class UserType(models.Model):
 				name='user_type_is_premium_idx'
 			),
 		]
+
 
 class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal):
     username_validator = UserUsernameValidator()
@@ -119,8 +139,9 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     )
     profile_picture = ThumbnailerImageField(
         thumbnail_storage=FILE_STORAGE_CLASS(), 
-        upload_to=USERS_PROFILE_PICTURES_UPLOAD_DIR,
-        validators=[FileExtensionValidator(['png, jpg'])],
+        upload_to=profile_pic_upload_path,
+		resize_source=dict(size=(400, 400)),
+        validators=[FileExtensionValidator(['png, jpg']), validate_profile_and_cover_photo],
         width_field='profile_picture_width', 
         height_field='profile_picture_height',
         # no null=True needed, since this translates to a char field 
@@ -129,7 +150,9 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
     )
     cover_photo = ThumbnailerImageField(
         thumbnail_storage=FILE_STORAGE_CLASS(), 
-        upload_to=USERS_COVER_PHOTOS_UPLOAD_DIR,
+        upload_to=cover_photo_upload_path,
+		resize_source=dict(size=(600, 250)),
+        validators=[FileExtensionValidator(['png, jpg'])],
         width_field='cover_photo_width',
         height_field='cover_photo_height',
         blank=True  

@@ -1,8 +1,13 @@
+import base64
 import datetime
 import graphene
+import uuid
 from actstream.actions import follow, unfollow
+from django.conf import settings
 from django.contrib.auth import get_user_model, logout
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from graphene_django_cud.mutations import DjangoPatchMutation
 from graphene_django_cud.util import disambiguate_id
@@ -12,15 +17,24 @@ from graphql_auth.bases import RelayMutationMixin, DynamicInputMixin, Output
 from graphql_auth.decorators import login_required
 from graphql_auth.schema import UserNode
 from graphql_auth.utils import revoke_user_refresh_token
+from graphene_file_upload.scalars import Upload
+from io import BytesIO
+from PIL import Image
 
+from accounts.constants import USERS_COVER_PHOTOS_UPLOAD_DIR, USERS_PROFILE_PICTURES_UPLOAD_DIR
 from accounts.mixins import SendNewEmailActivationMixin, VerifyNewEmailMixin
 from accounts.models.users.models import Suspension
-from accounts.validators import UserUsernameValidator
+from accounts.validators import UserUsernameValidator, validate_profile_and_cover_photo
+from core.constants import FILE_STORAGE_CLASS
+from core.utils import get_image_file_thumbnail_extension_and_type
+from posts.utils import get_post_media_upload_path
 from flagging.graphql.types import FlagInstanceNode, FlagReason
 from notifications.models.models import Notification
 from notifications.signals import notify
 from .types import UserFollowNode, UserBlockingNode, SuspensionNode
 
+STORAGE = FILE_STORAGE_CLASS()
+THUMBNAIL_ALIASES = settings.THUMBNAIL_ALIASES
 User = get_user_model()
 
 
@@ -141,6 +155,106 @@ class VerifyNewEmail(
     _required_inputs = ["token"]
 
 
+class UpdateProfilePic(Output, graphene.ClientIDMutation):
+    class Input:
+        file = Upload(required=True)
+    
+    filename = graphene.String()
+    base64_str = graphene.String()
+    mimetype = graphene.String()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, file):
+        # Validate file
+        validate_profile_and_cover_photo(file)
+
+        user = info.context.user
+
+        # Get file extension and type to use with PIL
+        file_extension, ftype = get_image_file_thumbnail_extension_and_type(file)
+
+        # Create thumbnail of file
+        image = Image.open(file)
+        # image = image.convert('RGB')
+        image.thumbnail(THUMBNAIL_ALIASES['']['profile_pic']['size'], Image.ANTIALIAS)
+        thumb_file = BytesIO()
+        image.save(thumb_file, format=ftype)
+        
+        use_filename = str(uuid.uuid4()) + '.' + file_extension
+        mimetype = file.content_type
+        file_bytes = thumb_file.getvalue()
+        img_file = ContentFile(file_bytes)
+        save_dir = get_post_media_upload_path(
+            user.id,
+            USERS_PROFILE_PICTURES_UPLOAD_DIR,
+            use_filename
+        )
+        saved_filename = STORAGE.save(save_dir, img_file)
+
+        # Update user's pfp
+        user.profile_picture = saved_filename
+        user.save(update_fields=[
+            'profile_picture', 'profile_picture_width', 'profile_picture_height'
+        ])
+
+        return cls(
+            filename=use_filename, 
+            base64_str=base64.b64encode(file_bytes).decode('utf-8'), 
+            mimetype=mimetype
+        )
+
+
+class UpdateCoverPhoto(Output, graphene.ClientIDMutation):
+    class Input:
+        file = Upload(required=True)
+    
+    filename = graphene.String()
+    base64_str = graphene.String()
+    mimetype = graphene.String()
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, file):
+        # Validate file
+        validate_profile_and_cover_photo(file)
+
+        user = info.context.user
+
+        # Get file extension and type to use with PIL
+        file_extension, ftype = get_image_file_thumbnail_extension_and_type(file)
+
+        # Create thumbnail of file
+        image = Image.open(file)
+        # image = image.convert('RGB')
+        image.thumbnail(THUMBNAIL_ALIASES['']['cover_photo']['size'], Image.ANTIALIAS)
+        thumb_file = BytesIO()
+        image.save(thumb_file, format=ftype)
+        
+        use_filename = str(uuid.uuid4()) + '.' + file_extension
+        mimetype = file.content_type
+        file_bytes = thumb_file.getvalue()
+        img_file = ContentFile(file_bytes)
+        save_dir = get_post_media_upload_path(
+            user.id,
+            USERS_COVER_PHOTOS_UPLOAD_DIR,
+            use_filename
+        )
+        saved_filename = STORAGE.save(save_dir, img_file)
+
+        # Update user's pfp
+        user.cover_photo = saved_filename
+        user.save(update_fields=[
+            'cover_photo', 'cover_photo_width', 'cover_photo_height'
+        ])
+
+        return cls(
+            filename=use_filename, 
+            base64_str=base64.b64encode(file_bytes).decode('utf-8'), 
+            mimetype=mimetype
+        )
+
+
 class FollowUser(Output, graphene.ClientIDMutation):
     class Input:
         user_id = graphene.ID(required=True)
@@ -242,6 +356,76 @@ class ReactivateAccount(Output, graphene.ClientIDMutation):
         # Refresh from db to get updated records
         user.refresh_from_db()
         return cls(account=user)
+
+
+class MarkUserVerified(Output, graphene.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    verified_user = graphene.Field(UserNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, user_id):
+        # Only staff can mark user's account as verified
+        user = info.context.user
+        if not user.is_staff:
+            raise GraphQLError(
+                _("You can not mark a user's account as verified"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        target_user = User.objects.get(id=int(disambiguate_id(user_id)))
+        target_user.type.is_verified = True
+        target_user.type.save()
+        target_user.verified_on = timezone.now()
+        target_user.save(update_fields=['verified_on'])
+
+        # Notify user
+        notify.send(
+            sender=User.site_services_account,  
+            recipient=target_user, 
+            verb=_("Your account has been successfully verified."),
+            category=Notification.ACCOUNT
+        )
+
+
+class ToggleIsMod(Output, graphene.ClientIDMutation):
+    class Input:
+        user_id = graphene.ID(required=True)
+
+    user = graphene.Field(UserNode)
+
+    @classmethod
+    @login_required
+    def mutate_and_get_payload(cls, root, info, user_id):
+        # Only staff can set or remove user moderator status
+        user = info.context.user
+        if not user.is_staff:
+            raise GraphQLError(
+                _("You can not change the moderator status of a user"),
+                extensions={'code': 'not_permitted'}
+            )
+
+        target_user = User.objects.get(id=int(disambiguate_id(user_id)))
+        is_now_mod = not target_user.is_mod
+        target_user.type.is_mod = is_now_mod
+        target_user.type.save()
+
+        # Notify user
+        if is_now_mod:
+            notify.send(
+                sender=User.site_services_account,  
+                recipient=target_user, 
+                verb=_(
+                    "Congrats, you are now a moderator on this site. "
+                    "Visit this link to learn more."
+                ),
+                category=Notification.ACCOUNT
+            )
+        else:
+            # Should user be notified if he's no longer a mod?
+            pass
 
 
 class FlagUser(Output, graphene.ClientIDMutation):

@@ -11,7 +11,8 @@ from accounts.graphql.users.mutations import (
     AuthRelayMutation, PatchUser, FollowUser, UnfollowUser,
     ChangeUsername, ChangeEmail, BlockUser, UnblockUser,
     VerifyNewEmail, SuspendUser, FlagUser, Subscribe, 
-    DeactivateAccount, ReactivateAccount, UserLogout
+    DeactivateAccount, ReactivateAccount, UserLogout,
+    ToggleIsMod, MarkUserVerified, UpdateProfilePic, UpdateCoverPhoto
 )
 from posts.graphql.artist_posts.mutations import (
     CreateArtistPost, DeleteArtistPost, RepostArtistPost, 
@@ -60,6 +61,8 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
 
     ## Extra user mutations
     patch_user = PatchUser.Field()
+    update_profile_pic = UpdateProfilePic.Field()
+    update_cover_photo = UpdateCoverPhoto.Field()
     logout_user = UserLogout.Field()
     change_username = ChangeUsername.Field()
     change_email = ChangeEmail.Field()
@@ -68,6 +71,8 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     unfollow_user = UnfollowUser.Field()
     block_user = BlockUser.Field()
     unblock_user = UnblockUser.Field()
+    mark_verified = MarkUserVerified.Field()
+    toggle_mod_status = ToggleIsMod.Field()
     flag_account = FlagUser.Field()
     suspend_user = SuspendUser.Field()
     deactivate_account = DeactivateAccount.Field()

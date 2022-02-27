@@ -1,6 +1,7 @@
 """This file contains utility functions"""
 
 import datetime
+import os
 import re
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -31,6 +32,11 @@ def extract_mentions(text)-> list:
     usernames = [tuple[1] for tuple in result if len(tuple) != INVALID_USERNAME_LENGTH_THRESHOLD]
 
     return usernames
+
+
+def get_post_media_upload_path(poster_id, folder_dir, filename):
+    """File will be uploaded to MEDIA_ROOT/users/user_<poster_id>/<folder_dir>/<filename>"""
+    return os.path.normpath('users/user_{0}/{1}/{2}'.format(poster_id, folder_dir, filename))
 
 
 def get_audio_duration(audio)-> tuple[int, str]:

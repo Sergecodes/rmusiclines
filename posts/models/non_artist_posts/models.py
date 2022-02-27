@@ -18,6 +18,7 @@ from posts.constants import (
 	NON_ARTIST_POST_VIDEO_UPLOAD_DIR, 
 	NON_ARTIST_POST_PHOTO_UPLOAD_DIR
 )
+from posts.utils import get_post_media_upload_path
 from posts.validators import validate_post_photo_file, validate_post_video_file
 from .operations import NonArtistPostOperations
 from ..common.models import (
@@ -27,9 +28,8 @@ from ..common.models import (
 
 
 def non_artist_post_photo_upload_path(instance, filename):
-	# instance is NonArtistPostPhoto about to be saved.
     # File will be uploaded to MEDIA_ROOT/users/user_<id>/non_artist_posts_photos/<filename>
-    return 'users/user_{0}/{1}/{2}'.format(
+    return get_post_media_upload_path(
 		instance.post.poster_id, 
 		NON_ARTIST_POST_PHOTO_UPLOAD_DIR,
 		filename
@@ -38,7 +38,7 @@ def non_artist_post_photo_upload_path(instance, filename):
 
 def non_artist_post_video_upload_path(instance, filename):
     # File will be uploaded to MEDIA_ROOT/user_<id>/non_artist_posts_videos/<filename>
-    return 'users/user_{0}/{1}/{2}'.format(
+    return get_post_media_upload_path(
 		instance.post.poster_id, 
 		NON_ARTIST_POST_VIDEO_UPLOAD_DIR,
 		filename

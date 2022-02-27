@@ -24,6 +24,6 @@ NON_PREMIUM_USER_MAX_DOWNLOADS_PER_MONTH = 10
 
 # Upload media directories
 ARTISTS_PHOTOS_UPLOAD_DIR = 'artists_photos/'
-USERS_PROFILE_PICTURES_UPLOAD_DIR = 'profile_pictures/'
+USERS_PROFILE_PICTURES_UPLOAD_DIR = 'profile_pics/'
 USERS_COVER_PHOTOS_UPLOAD_DIR = 'cover_photos/'
 

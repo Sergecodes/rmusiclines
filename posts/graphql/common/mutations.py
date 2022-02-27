@@ -32,10 +32,10 @@ MEDIA_ROOT = settings.MEDIA_ROOT
 THUMBNAIL_ALIASES = settings.THUMBNAIL_ALIASES
 
 		
-class MultipleImageUploadMutation(Output, graphene.Mutation):
+class MultipleImageUploadMutation(Output, graphene.ClientIDMutation):
 	"""Upload multiple images at once"""
 
-	class Arguments:
+	class Input:
 		files = graphene.List(Upload, required=True)
 
 	filenames = graphene.List(graphene.String)
@@ -44,7 +44,7 @@ class MultipleImageUploadMutation(Output, graphene.Mutation):
 	 
 	@classmethod
 	@login_required
-	def mutate(cls, root, info, files: list, **kwargs):
+	def mutate_and_get_payload(cls, root, info, files: list):
 		user_cache_keys = get_user_cache_keys(info.context.user.username)
 		cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
 
@@ -111,15 +111,15 @@ class MultipleImageUploadMutation(Output, graphene.Mutation):
 		)
 	   
 
-class DeleteImageMutation(Output, graphene.Mutation):
+class DeleteImageMutation(Output, graphene.ClientIDMutation):
 	"""Delete an uploaded image via its filename"""
 
-	class Arguments:
+	class Input:
 		filename = graphene.String()
 
 	@classmethod
 	@login_required
-	def mutate(cls, root, info, filename, **kwargs):
+	def mutate_and_get_payload(cls, root, info, filename):
 		user_cache_keys = get_user_cache_keys(info.context.user.username)
 		cache_key = user_cache_keys['photos']
 
@@ -148,7 +148,7 @@ class DeleteImageMutation(Output, graphene.Mutation):
 		return DeleteImageMutation(success=True)
 
 
-class VideoUploadMutation(Output, graphene.Mutation):
+class VideoUploadMutation(Output, graphene.ClientIDMutation):
 	"""
 	Upload a video.
 	Flow:
@@ -156,7 +156,7 @@ class VideoUploadMutation(Output, graphene.Mutation):
 		- Store filename, mimetype and filepath in cache and return them.
 	"""
 
-	class Arguments:
+	class Input:
 		file = Upload(required=True)
 
 	filename = graphene.String()
@@ -166,7 +166,7 @@ class VideoUploadMutation(Output, graphene.Mutation):
 	 
 	@classmethod
 	@login_required
-	def mutate(cls, root, info, file, **kwargs):
+	def mutate_and_get_payload(cls, root, info, file):
 		## Note that InMemoryUploaded files will be saved during validation,
 		# while TemporaryUploaded files won't be
 
@@ -199,7 +199,7 @@ class VideoUploadMutation(Output, graphene.Mutation):
 		# If file is not in disk, save it. This is the case for TemporaryUploadedFiles.
 		if not STORAGE.exists(save_path):
 			print('not in storage')
-			# Print something like "tmp/filename.ext"
+			# Prints something like "tmp/filename.ext"
 			saved_filename = STORAGE.save(save_path, file)
 
 			# AWS can construct urls to the file when given the filename. 
@@ -217,15 +217,17 @@ class VideoUploadMutation(Output, graphene.Mutation):
 			path = STORAGE.url(use_filename) if USE_S3 else save_path
 
 		file_dict = {
-			'filename': use_filename, 'mimetype': mimetype,
-			'filepath': path, 'was_audio': False
+			'filename': use_filename, 
+			'mimetype': mimetype,
+			'filepath': path, 
+			'was_audio': False
 		}
 		cache.set(cache_key, file_dict, None)
 
 		return VideoUploadMutation(**file_dict)
 	   
 
-class AudioUploadMutation(Output, graphene.Mutation):
+class AudioUploadMutation(Output, graphene.ClientIDMutation):
 	"""
 	Upload an audio.
 	Flow:
@@ -234,7 +236,7 @@ class AudioUploadMutation(Output, graphene.Mutation):
 		- Store filename, mimetype and filepath in cache and return them.
 	"""
 
-	class Arguments:
+	class Input:
 		file = Upload(required=True)
 
 	filename = graphene.String()
@@ -244,7 +246,7 @@ class AudioUploadMutation(Output, graphene.Mutation):
 	 
 	@classmethod
 	@login_required
-	def mutate(cls, root, info, file, **kwargs):
+	def mutate_and_get_payload(cls, root, info, file):
 		user = info.context.user
 		user_cache_keys = get_user_cache_keys(user.username)
 		cache_photos_key, cache_video_key = user_cache_keys['photos'], user_cache_keys['video']
@@ -309,12 +311,12 @@ class AudioUploadMutation(Output, graphene.Mutation):
 		return AudioUploadMutation(**file_dict)
 	   
 
-class DeleteUploadedVideoMutation(Output, graphene.Mutation):
+class DeleteUploadedVideoMutation(Output, graphene.ClientIDMutation):
 	"""Delete uploaded video(remove it from cache)"""
 
 	@classmethod
 	@login_required
-	def mutate(cls, root, info, **kwargs):
+	def mutate_and_get_payload(cls, root, info):
 		user_cache_keys = get_user_cache_keys(info.context.user.username)
 		cache.delete(user_cache_keys['video'])
 
