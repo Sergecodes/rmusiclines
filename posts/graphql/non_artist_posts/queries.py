@@ -2,7 +2,7 @@ import graphene
 from graphene_django import DjangoObjectType
 from graphene_django.filter import DjangoFilterConnectionField
 
-from core.mixins import PKMixin
+from core.mixins import GraphenePKMixin
 from posts.models.non_artist_posts.models import (
     NonArtistPost, NonArtistPostComment
 )
@@ -15,7 +15,7 @@ class NonArtistPostType(DjangoObjectType):
 
 # Graphene will automatically map the NonArtistPost model's fields onto the NonArtistPostNode.
 # This is configured in the NonArtistPostNode's Meta class (as you can see below)
-class NonArtistPostNode(PKMixin, DjangoObjectType):
+class NonArtistPostNode(GraphenePKMixin, DjangoObjectType):
     class Meta:
         model = NonArtistPost
         filter_fields = {

@@ -4,8 +4,8 @@ from django.db.models import Q
 from functools import reduce
 from graphene_django import DjangoObjectType
 
-from accounts.models.artists.models import Artist, ArtistFollow
-from core.mixins import PKMixin, GrapheneRenderTaggitTags
+from accounts.models.artists.models import Artist, ArtistPhoto, ArtistFollow
+from core.mixins import GraphenePKMixin, GraphenePhotoMixin, GrapheneRenderTaggitTags
 
 
 class ArtistFilter(django_filters.FilterSet):
@@ -34,14 +34,20 @@ class ArtistFilter(django_filters.FilterSet):
         return qs
 
 
-class ArtistNode(PKMixin, GrapheneRenderTaggitTags, DjangoObjectType):
+class ArtistNode(GraphenePKMixin, GrapheneRenderTaggitTags, DjangoObjectType):
     class Meta:
         model = Artist
         interfaces = [graphene.relay.Node, ]
         filterset_class = ArtistFilter
 
 
-class ArtistFollowNode(PKMixin, DjangoObjectType):
+class ArtistPhotoNode(GraphenePKMixin, GraphenePhotoMixin, DjangoObjectType):
+    class Meta:
+        model = ArtistPhoto
+        interfaces = [graphene.relay.Node, ]
+
+
+class ArtistFollowNode(GraphenePKMixin, DjangoObjectType):
     class Meta:
         model = ArtistFollow
         interfaces = [graphene.relay.Node, ]

@@ -406,10 +406,11 @@ GRAPPELLI_AUTOCOMPLETE_SEARCH_FIELDS = {
 THUMBNAIL_ALIASES = {
 	# width and height are required for size
 	'': {
-		'thumb': {'size': (2000, 500), 'sharpen': True, },
-		'sm_thumb': {'size': (1000, 350), 'sharpen': True, },
+		'thumb': {'size': (800, 800)},
+		'sm_thumb': {'size': (500, 500)},
 		'profile_pic': {'size': (400, 400)},
-		'cover_photo': {'size': (600, 250)}
+		'cover_photo': {'size': (600, 250)},
+		'artist_photo': {'size': (900, 900)}
 	}
 }
 THUMBNAIL_CACHE_DIMENSIONS = True

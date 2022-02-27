@@ -1,4 +1,5 @@
 import datetime
+import os
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
@@ -19,6 +20,10 @@ def get_age(birth_date: datetime.date):
     return today.year - born.year - (
         (today.month, today.day) < (born.month, born.day)
     )
+
+
+def get_artist_photos_upload_path(artist_slug, folder_dir, filename):
+    return os.path.normpath('artists/artist_{0}/{1}/{2}'.format(artist_slug, folder_dir, filename))
 
 
 def get_artist(artist_or_id):

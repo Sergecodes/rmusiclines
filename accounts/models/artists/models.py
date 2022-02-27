@@ -9,13 +9,15 @@ from easy_thumbnails.fields import ThumbnailerImageField
 from taggit.managers import TaggableManager
 from taggit.models import TagBase, TaggedItemBase
 
-from accounts.constants import (
-	ARTIST_MAX_AGE, ARTIST_MIN_AGE,
-	ARTISTS_PHOTOS_UPLOAD_DIR
-)
-from accounts.utils import get_age
+from accounts.constants import ARTIST_MAX_AGE, ARTIST_MIN_AGE, ARTISTS_PHOTOS_UPLOAD_DIR
+from accounts.utils import get_age, get_artist_photos_upload_path as get_upload_path
 from core.constants import GENDERS, FILE_STORAGE_CLASS
 from .operations import ArtistOperations, ArtistTagOperations
+
+
+def get_artist_photo_upload_path(instance, filename):
+    # File will be uploaded to MEDIA_ROOT/artists/artist_<slug>/artist_photos/<filename>
+	return get_upload_path(instance.artist.slug, ARTISTS_PHOTOS_UPLOAD_DIR, filename)
 
 
 class Artist(models.Model, ArtistOperations):
@@ -145,14 +147,23 @@ class ArtistPhoto(models.Model):
 	# Use width_field and height_field to optimize getting photo's width and height
 	photo = ThumbnailerImageField(
 		thumbnail_storage=FILE_STORAGE_CLASS(), 
-		upload_to=ARTISTS_PHOTOS_UPLOAD_DIR,
-		resize_source=dict(size=(1800, 1800), sharpen=True),
-		validators=[FileExtensionValidator(['png, jpg, gif'])],
+		upload_to=get_artist_photo_upload_path,
+		resize_source=dict(size=(600, 600), sharpen=True),
+		validators=[FileExtensionValidator(['png, jpg'])],
 		width_field='photo_width', 
 		height_field='photo_height'
 	)
 	photo_width = models.PositiveIntegerField()
 	photo_height = models.PositiveIntegerField()
+	uploaded_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		db_column='user_id',
+		# If uploader is deleted, keep photos but mark uploader as Null
+		on_delete=models.SET_NULL,
+		related_name='uploaded_artist_photos',
+		related_query_name='artist_photo',
+		null=True
+	)
 	uploaded_on = models.DateTimeField(auto_now_add=True)
 
 	def __str__(self):

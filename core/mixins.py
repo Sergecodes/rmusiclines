@@ -1,5 +1,6 @@
 """Contains project-wide utilities"""
 
+import base64
 import graphene
 from graphene_django.converter import convert_django_field
 from taggit.managers import TaggableManager
@@ -13,12 +14,28 @@ class UsesCustomSignal:
     pass
 
 
-class PKMixin:
+class GraphenePKMixin:
     """
     Use with a graphene ObjectType to include pk of the model in fields
     since relay overshadows the object's id with a global ID
     """
-    pk = graphene.Field(type=graphene.Int, source='pk')
+    pk = graphene.Field(graphene.Int, source='pk')
+
+
+class GraphenePhotoMixin:
+    """
+    Used with DjangoObjectTypes that represent a photo model.
+    Used to query base64 string and url
+    """
+    base64_str = graphene.String()
+    url = graphene.String()
+
+    def resolve_base64_str(root, info):
+        # root is the model object type that is in context
+        return base64.b64encode(root.photo.read()).decode('utf-8')
+
+    def resolve_url(root, info):
+        return root.photo.url
 
 
 class GrapheneRenderTaggitTags:

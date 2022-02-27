@@ -5,7 +5,7 @@ from django.contrib.auth.models import (
 from django.db.models.query import QuerySet
 from django.utils import timezone
 
-from accounts.models.artists.models import Artist
+from accounts.models.artists.models import Artist, ArtistPhoto
 from core.utils import get_content_type
 
 
@@ -67,12 +67,17 @@ class UserManager(BaseUserManager):
         # Mark staff as moderator
         UserType.objects.create(user=staff_user, is_mod=True)
         
-        # Get and set CUD(Create-Update-Delete) artist operations permissions
+        # Get and set CUD(Create-Update-Delete) artist & artist photo operations permissions
         cud_artist_permissions = Permission.objects.filter(
             content_type=get_content_type(Artist)
         ).exclude(codename='view_artist')
 
-        staff_user.user_permissions.set(cud_artist_permissions)
+        cud_artist_photo_permissions = Permission.objects.filter(
+            content_type=get_content_type(ArtistPhoto)
+        ).exclude(codename='view_artistphoto')
+
+        perms = [cud_artist_permissions, cud_artist_photo_permissions]
+        staff_user.user_permissions.set(perms)
 
 
     def create_superuser(

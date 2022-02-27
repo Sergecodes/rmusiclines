@@ -4,7 +4,7 @@ from graphql_auth.schema import UserQuery, MeQuery
 
 from accounts.graphql.artists.mutations import (
     CreateArtist, PatchArtist, DeleteArtist, FilterUpdateArtist,
-    FollowArtist, UnfollowArtist, 
+    FollowArtist, UnfollowArtist, UploadArtistPhotos, BatchDeleteArtistPhoto
 )
 from accounts.graphql.artists.queries import ArtistQuery
 from accounts.graphql.users.mutations import (
@@ -29,7 +29,7 @@ from posts.graphql.artist_posts.queries import (
     ArtistPostQuery, ArtistPostCommentQuery
 )
 from posts.graphql.common.mutations import (
-    DeleteImageMutation, MultipleImageUploadMutation,
+    DeleteImagesMutation, MultipleImageUploadMutation,
     VideoUploadMutation, DeleteUploadedVideoMutation,
     AudioUploadMutation
 )
@@ -53,11 +53,11 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     debug = graphene.Field(DjangoDebug, name='_debug')
     
     ## Post Upload mutations
-    image_upload = MultipleImageUploadMutation.Field()
-    delete_image = DeleteImageMutation.Field()
-    video_upload = VideoUploadMutation.Field()
-    delete_video = DeleteUploadedVideoMutation.Field()
-    audio_upload = AudioUploadMutation.Field()
+    upload_post_images = MultipleImageUploadMutation.Field()
+    delete_post_images = DeleteImagesMutation.Field()
+    upload_post_audio = AudioUploadMutation.Field()
+    upload_post_video = VideoUploadMutation.Field()
+    delete_post_video = DeleteUploadedVideoMutation.Field()
 
     ## Extra user mutations
     patch_user = PatchUser.Field()
@@ -86,6 +86,8 @@ class Mutation(AuthRelayMutation, graphene.ObjectType):
     filter_update_artist = FilterUpdateArtist.Field()
     follow_artist = FollowArtist.Field()
     unfollow_artist = UnfollowArtist.Field()
+    upload_artist_photos = UploadArtistPhotos.Field()
+    delete_artist_photos = BatchDeleteArtistPhoto.Field()
 
     ## Artist Post mutations
     create_artist_post = CreateArtistPost.Field()

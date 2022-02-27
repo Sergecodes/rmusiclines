@@ -1,6 +1,5 @@
 
 # TODO
-- upload artist photos and delete artist photos
 - setup social authentication (django graphql social auth...)
 
 then:

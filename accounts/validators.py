@@ -31,6 +31,16 @@ class UserDisplayNameSimilarityPasswordValidator(UserAttributeSimilarityValidato
 		super().__init__(user_attributes)
 		
 
+def validate_artist_photo(photo_file):
+    """
+    Validate artist photo
+    - Max size: 20mb
+    - Types: png, jpg
+
+    :param `photo_file`: File object
+    """
+    validate_profile_and_cover_photo(photo_file)
+
 
 def validate_profile_and_cover_photo(photo_file):
     """

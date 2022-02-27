@@ -43,8 +43,8 @@ class PatchUser(Output, DjangoPatchMutation):
         model = User
         only_fields = [
             'display_name', 'country', 'birth_date', 'bio',
-            'profile_picture', 'cover_photo', 'gender', 'is_mod', 
-            'is_active', 'is_verified', 'is_premium', 'pinned_artist_post',
+            'profile_picture', 'cover_photo', 'gender', 
+            'is_active', 'is_premium', 'pinned_artist_post',
             'pinned_non_artist_post', 
         ]
 
@@ -191,6 +191,7 @@ class UpdateProfilePic(Output, graphene.ClientIDMutation):
             use_filename
         )
         saved_filename = STORAGE.save(save_dir, img_file)
+        thumb_file.close()
 
         # Update user's pfp
         user.profile_picture = saved_filename
@@ -241,6 +242,7 @@ class UpdateCoverPhoto(Output, graphene.ClientIDMutation):
             use_filename
         )
         saved_filename = STORAGE.save(save_dir, img_file)
+        thumb_file.close()
 
         # Update user's pfp
         user.cover_photo = saved_filename

@@ -111,41 +111,49 @@ class MultipleImageUploadMutation(Output, graphene.ClientIDMutation):
 		)
 	   
 
-class DeleteImageMutation(Output, graphene.ClientIDMutation):
+class DeleteImagesMutation(Output, graphene.ClientIDMutation):
 	"""Delete an uploaded image via its filename"""
 
 	class Input:
-		filename = graphene.String()
+		filenames = graphene.List(graphene.String, required=True)
+
+	deleted_filenames = graphene.List(graphene.String)
+	num_photos_left = graphene.Int()
 
 	@classmethod
 	@login_required
-	def mutate_and_get_payload(cls, root, info, filename):
+	def mutate_and_get_payload(cls, root, info, filenames: list):
 		user_cache_keys = get_user_cache_keys(info.context.user.username)
 		cache_key = user_cache_keys['photos']
 
 		user_photos_list = cache.get_or_set(cache_key, [], None)
+		deleted_filenames = []
 
-		# Find file name in cache
-		for i in range(len(user_photos_list)):
-			photo_dict = user_photos_list[i]
+		for filename in filenames:
+			# Find file name in cache
+			for i in range(len(user_photos_list)):
+				photo_dict = user_photos_list[i]
 
-			if photo_dict['filename'] == filename:
-				del_index = i
-				break
-		else:
-			# If the for loop is not broken(break-ed) - (if the filename is not found)
-			# this will be executed.
-			# 
-			# In other words, this statement will be executed only if the loop completes.
-			raise GraphQLError(
-				_('No such file found'),
-				extensions={'code': 'not_found'}
-			)
+				if photo_dict['filename'] == filename:
+					del_index = i
+					break
+			# else:
+			# 	# If the for loop is not broken(break-ed) - (if the filename is not found)
+			# 	# this will be executed.
+			# 	# 
+			# 	# In other words, this statement will be executed only if the loop completes.
+			# 	raise GraphQLError(
+			# 		_('No such file found'),
+			# 		extensions={'code': 'not_found'}
+			# 	)
 
-		del user_photos_list[del_index]
+			del_filename = user_photos_list[del_index]
+			deleted_filenames.append(del_filename)
+
+			del user_photos_list[del_index]
+
 		cache.set(cache_key, user_photos_list)
-
-		return DeleteImageMutation(success=True)
+		return cls(deleted_filenames=deleted_filenames, num_photos_left=len(user_photos_list))
 
 
 class VideoUploadMutation(Output, graphene.ClientIDMutation):
