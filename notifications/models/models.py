@@ -239,7 +239,7 @@ class Notification(models.Model, NotificationOperations):
     action_object_object_id = models.CharField(max_length=255, blank=True)
     action_object = GenericForeignKey('action_object_content_type', 'action_object_object_id')
 
-    timestamp = models.DateTimeField(auto_now_add=True, editable=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
     ## For now this field isn't used, so let's remove it.
     # when setting SOFT_DELETE=True, re insert this field.
     # deleted = models.BooleanField(default=False, db_index=True)

@@ -120,7 +120,7 @@ class ArtistFollow(models.Model):
         on_delete=models.CASCADE,
         related_name='+'
     )
-    followed_on = models.DateTimeField(auto_now_add=True, editable=False)
+    followed_on = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f'{str(self.follower)} follows {str(self.artist)}'

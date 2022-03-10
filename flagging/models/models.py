@@ -121,7 +121,7 @@ class FlagInstance(models.Model):
         related_query_name='flag_instance',
         on_delete=models.CASCADE
     )
-    flagged_on = models.DateTimeField(auto_now_add=True, editable=False)
+    flagged_on = models.DateTimeField(auto_now_add=True)
     reason = models.SmallIntegerField(choices=FLAG_REASONS, default=reason_values[0])
 
     objects = FlagInstanceManager()

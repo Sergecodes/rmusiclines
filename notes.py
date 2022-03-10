@@ -1,8 +1,17 @@
 
 # TODO
+- UPDATE googlemail to gmail conversion. (perhaps use custom field that automatically does the convertion) .
+eg. email.replace(@googlemail.com, @gmail.com)
+(see https://stackoverflow.com/questions/44117619/why-django-lowercases-only-the-domain-part-of-email-addresses-in-normalize-email)
+- update pre delete User signal ; see
+ https://stackoverflow.com/questions/59603139/how-to-use-a-pre-delete-signal-to-universally-prevent-delete
+In conlusion, don't use pre delete signal.
+
 - update non artist post graphql stuffs
 - setup social authentication (django graphql social auth...)
 - test media upload via AWS
+
+
 
 then:
 - setup memcached for storing sessions and for general caching !! (performance reasons)

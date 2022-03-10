@@ -38,7 +38,7 @@ class Post(models.Model, PostOperations):
 		default='en',
 		max_length=7
 	)
-	created_on = models.DateTimeField(auto_now_add=True, editable=False)
+	created_on = models.DateTimeField(auto_now_add=True)
 	last_updated_on = models.DateTimeField(auto_now=True, editable=False)
 	is_private = models.BooleanField(default=False)
 	# Is post a normal repost(repost without body)? If it is null, then post is a 
@@ -245,7 +245,7 @@ class PostHashtag(TagBase):
 
 class PostRating(models.Model):
 	num_stars = models.PositiveIntegerField(editable=False)
-	rated_on = models.DateTimeField(auto_now_add=True, editable=False)
+	rated_on = models.DateTimeField(auto_now_add=True)
 
 	def clean(self):
 		valid_stars = (1, 3, 5)
@@ -268,7 +268,7 @@ class Comment(models.Model):
 	uuid = ShortUUIDField(length=16, unique=True, max_length=24)
 	body = models.TextField()
 	last_updated_on = models.DateTimeField(auto_now=True, editable=False)
-	created_on = models.DateTimeField(auto_now_add=True, editable=False)
+	created_on = models.DateTimeField(auto_now_add=True)
 	num_likes = models.PositiveIntegerField(default=0, editable=False)
 	# If comment is an ancestor, this will hold its number of child comments(its number
 	# of descendant comments - by default 0). Else it will be null
@@ -312,7 +312,7 @@ class Comment(models.Model):
 
 
 class CommentLike(models.Model):
-	liked_on = models.DateTimeField(auto_now_add=True, editable=False)
+	liked_on = models.DateTimeField(auto_now_add=True)
 
 	class Meta:
 		abstract = True

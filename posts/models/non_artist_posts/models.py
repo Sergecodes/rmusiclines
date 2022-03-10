@@ -319,7 +319,7 @@ class NonArtistPostBookmark(models.Model):
 		on_delete=models.CASCADE,
 		related_name='+'
 	)
-	bookmarked_on = models.DateTimeField(auto_now_add=True, editable=False)
+	bookmarked_on = models.DateTimeField(auto_now_add=True)
 
 	def __str__(self):
 		return f'Post {str(self.post)} bookmarked by {str(self.bookmarker)}'
@@ -349,7 +349,7 @@ class NonArtistPostDownload(models.Model):
 		related_name='non_artist_post_downloads',
 		related_query_name='non_artist_post_download'
 	)
-	downloaded_on = models.DateTimeField(auto_now_add=True, editable=False)
+	downloaded_on = models.DateTimeField(auto_now_add=True)
 
 	def __str__(self):
 		return f'Post {str(self.post)} downloaded by {str(self.downloader)}'
