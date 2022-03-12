@@ -71,7 +71,7 @@ class NonArtistPost(Post, NonArtistPostOperations, FlagMixin, UsesCustomSignal):
 		'NonArtistPostComment',
 		db_column='pinned_comment_id',
 		related_name='+',
-		on_delete=models.CASCADE,
+		on_delete=models.SET_NULL,
 		blank=True,
 		null=True
 	)

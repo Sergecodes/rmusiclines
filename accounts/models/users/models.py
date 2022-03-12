@@ -220,7 +220,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         ArtistPost,
         related_name='+',
         db_column='pinned_artist_post_id',
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         blank=True,
         null=True
     )
@@ -228,7 +228,7 @@ class User(AbstractBaseUser, PermissionsMixin, UserOperations, UsesCustomSignal)
         NonArtistPost,
         related_name='+',
         db_column='pinned_non_artist_post_id',
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         blank=True, 
         null=True
     )

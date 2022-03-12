@@ -76,7 +76,7 @@ class ArtistPost(Post, ArtistPostOperations, FlagMixin, UsesCustomSignal):
 		'ArtistPostComment',
 		db_column='pinned_comment_id',
 		related_name='+',
-		on_delete=models.CASCADE,
+		on_delete=models.SET_NULL,
 		blank=True,
 		null=True
 	)
